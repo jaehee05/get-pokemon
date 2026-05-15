@@ -96,6 +96,8 @@ export default function PackOpen() {
     }
   }
 
+  const [resetting, setResetting] = useState(false);
+
   function reveal(i: number) {
     setRevealed((arr) => arr.map((v, idx) => (idx === i ? true : v)));
   }
@@ -107,6 +109,23 @@ export default function PackOpen() {
     setResult(null);
     setRevealed([]);
     setStage("idle");
+  }
+
+  /**
+   * '한 번 더' 버튼. 안 연 카드가 남았으면 먼저 전부 공개해서 잠깐 보여준 뒤
+   * 자연스럽게 idle 로 복귀.
+   */
+  async function againOrRevealFirst() {
+    if (!result) return;
+    const anyHidden = revealed.some((v) => !v);
+    if (anyHidden) {
+      setResetting(true);
+      setRevealed(new Array(result.cards.length).fill(true));
+      // flip 애니메이션(~0.75s) + 카드 확인 시간
+      await new Promise((res) => setTimeout(res, 1100));
+      setResetting(false);
+    }
+    reset();
   }
 
   if (!pack) return <div className="center">팩 로딩 중...</div>;
@@ -286,8 +305,12 @@ export default function PackOpen() {
             </div>
           </div>
           <div className="row" style={{ justifyContent: "center", marginTop: 20 }}>
-            <button onClick={revealAll} className="secondary">전부 공개</button>
-            <button onClick={reset}>한 번 더</button>
+            <button onClick={revealAll} className="secondary" disabled={resetting}>
+              전부 공개
+            </button>
+            <button onClick={againOrRevealFirst} disabled={resetting}>
+              {resetting ? "공개 중..." : "한 번 더"}
+            </button>
           </div>
         </>
       )}
