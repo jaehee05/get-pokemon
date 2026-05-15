@@ -8,9 +8,11 @@ import Admin from "./pages/Admin";
 import Home from "./pages/Home";
 import Inventory from "./pages/Inventory";
 import PackOpen from "./pages/PackOpen";
+import { formatCurrency, useProfile } from "./useProfile";
 
 export default function App() {
   const { user, isAdmin, loading, signOutNow, refreshClaims } = useAuth();
+  const profile = useProfile();
   const location = useLocation();
   const [authOpen, setAuthOpen] = useState(false);
   const [claiming, setClaiming] = useState(false);
@@ -61,7 +63,13 @@ export default function App() {
         <div className="auth">
           {user ? (
             <>
-              <span className="muted">
+              <div className="balance-pill" title="보유 캐시">
+                <span style={{ fontSize: 14 }}>💎</span>
+                <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>
+                  {formatCurrency(profile?.currency ?? 0)}
+                </span>
+              </div>
+              <span className="muted" style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {user.displayName || user.email || "Trainer"}
               </span>
               {showClaimButton && (
@@ -75,7 +83,7 @@ export default function App() {
                   {claiming ? "확인 중..." : "Admin 받기"}
                 </button>
               )}
-              <button onClick={signOutNow}>로그아웃</button>
+              <button className="secondary" onClick={signOutNow}>로그아웃</button>
             </>
           ) : (
             <button onClick={() => setAuthOpen(true)}>로그인 / 회원가입</button>

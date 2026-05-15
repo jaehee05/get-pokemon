@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth";
 import { functions } from "../firebase";
+import { formatCurrency, useProfile } from "../useProfile";
 
 interface PackMeta {
   id: string;
@@ -16,6 +17,8 @@ export default function Home() {
   const [packs, setPacks] = useState<PackMeta[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const { user } = useAuth();
+  const profile = useProfile();
+  const balance = profile?.currency ?? 0;
 
   useEffect(() => {
     const call = httpsCallable<unknown, { packs: PackMeta[] }>(
@@ -29,41 +32,82 @@ export default function Home() {
 
   return (
     <div>
-      <h1 className="h1">팩 선택</h1>
+      <div className="row" style={{ justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap" }}>
+        <h1 className="h1" style={{ margin: 0 }}>팩 선택</h1>
+        {user && (
+          <div className="row" style={{ gap: 14, fontSize: 13 }}>
+            <span className="muted">보유 캐시</span>
+            <span className="balance-pill" style={{ fontSize: 14 }}>
+              <span>💎</span>
+              <b style={{ fontSize: 14 }}>{formatCurrency(balance)}</b>
+            </span>
+          </div>
+        )}
+      </div>
+
       {!user && (
-        <p className="muted">
+        <div className="empty" style={{ marginBottom: 16 }}>
+          <div className="icon">🔐</div>
           팩을 열려면 우측 상단에서 로그인 또는 회원가입을 해주세요.
-        </p>
+        </div>
       )}
+
       {err && <p style={{ color: "var(--danger)" }}>{err}</p>}
       {packs === null && !err && <p className="muted">불러오는 중...</p>}
       {packs && packs.length === 0 && (
-        <p className="muted">
+        <div className="empty">
+          <div className="icon">📦</div>
           아직 활성화된 팩이 없습니다. 관리자에서 카드와 팩을 추가해주세요.
-        </p>
+        </div>
       )}
       {packs && packs.length > 0 && (
         <div className="grid packs">
-          {packs.map((p) => (
-            <Link
-              key={p.id}
-              to={`/pack/${p.id}`}
-              className="card"
-              style={{ textDecoration: "none", color: "inherit" }}
-            >
-              <div className="thumb">
-                {p.imageUrl ? (
-                  <img src={p.imageUrl} alt={p.name} />
-                ) : (
-                  <span style={{ fontSize: 48 }}>📦</span>
-                )}
-              </div>
-              <div className="name">{p.name}</div>
-              <div className="muted">
-                {p.cardCount}장 · 가격 {p.price ?? 0}
-              </div>
-            </Link>
-          ))}
+          {packs.map((p) => {
+            const free = (p.price ?? 0) === 0;
+            const cantAfford = user && !free && balance < p.price;
+            return (
+              <Link
+                key={p.id}
+                to={`/pack/${p.id}`}
+                className={`card pack-tile${cantAfford ? " unaffordable" : ""}`}
+                style={{ textDecoration: "none", color: "inherit" }}
+              >
+                <div className="thumb">
+                  {p.imageUrl ? (
+                    <img src={p.imageUrl} alt={p.name} />
+                  ) : (
+                    <span className="pack-icon">📦</span>
+                  )}
+                  <span className="badge">{p.cardCount}장</span>
+                  {cantAfford && (
+                    <span
+                      className="badge"
+                      style={{
+                        top: "auto",
+                        bottom: 10,
+                        background: "rgba(244, 63, 94, 0.85)",
+                        borderColor: "rgba(244, 63, 94, 0.4)",
+                      }}
+                    >
+                      잔액 부족
+                    </span>
+                  )}
+                </div>
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <div className="name">{p.name}</div>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 14,
+                      color: free ? "var(--ok)" : cantAfford ? "var(--danger)" : "var(--accent)",
+                    }}
+                  >
+                    {free ? "무료" : `💎 ${formatCurrency(p.price)}`}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

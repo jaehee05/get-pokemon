@@ -13,6 +13,7 @@ import {
   Rarity,
   formatCardNumber,
 } from "../types";
+import { formatCurrency, useProfile } from "../useProfile";
 
 interface PackMeta {
   id: string;
@@ -36,6 +37,8 @@ const MIN_OPEN_MS = 1400;
 export default function PackOpen() {
   const { packId } = useParams<{ packId: string }>();
   const nav = useNavigate();
+  const profile = useProfile();
+  const balance = profile?.currency ?? 0;
   const [pack, setPack] = useState<PackMeta | null>(null);
   const [stage, setStage] = useState<Stage>("idle");
   const [result, setResult] = useState<OpenPackResult | null>(null);
@@ -110,6 +113,9 @@ export default function PackOpen() {
   const maxTier = result
     ? Math.max(0, ...result.rarities.map((r) => RARITY_TIER[r]))
     : 0;
+  const price = pack.price ?? 0;
+  const free = price === 0;
+  const cantAfford = !free && balance < price;
 
   return (
     <div className={`open-root tier-${maxTier}`}>
@@ -121,10 +127,26 @@ export default function PackOpen() {
         ← 돌아가기
       </button>
 
-      <h1 className="h1" style={{ marginBottom: 4 }}>{pack.name}</h1>
-      <p className="muted" style={{ marginTop: 0 }}>
-        {pack.cardCount}장 · 가격 {pack.price ?? 0}
-      </p>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div>
+          <h1 className="h1" style={{ marginBottom: 4 }}>{pack.name}</h1>
+          <p className="muted" style={{ marginTop: 0 }}>{pack.cardCount}장</p>
+        </div>
+        <div className="col" style={{ alignItems: "flex-end", gap: 6 }}>
+          <span className="balance-pill">
+            <span>💎</span>
+            <b>{formatCurrency(balance)}</b>
+          </span>
+          <span className="muted" style={{ fontSize: 12 }}>
+            팩 가격 {free ? <b style={{ color: "var(--ok)" }}>무료</b> : <b style={{ color: "var(--accent)" }}>💎 {formatCurrency(price)}</b>}
+            {!free && (
+              <> · 개봉 후 <b style={{ color: cantAfford ? "var(--danger)" : "var(--text)" }}>
+                💎 {formatCurrency(balance - price)}
+              </b></>
+            )}
+          </span>
+        </div>
+      </div>
 
       {/* Idle / Opening: 큰 팩 */}
       {stage !== "revealed" && (
@@ -146,9 +168,24 @@ export default function PackOpen() {
           </div>
 
           {stage === "idle" ? (
-            <div className="col" style={{ alignItems: "center" }}>
-              <button onClick={open} className="open-btn">팩 열기</button>
-              {err && <p style={{ color: "var(--danger)" }}>{err}</p>}
+            <div className="col" style={{ alignItems: "center", gap: 10 }}>
+              <button
+                onClick={open}
+                className="open-btn"
+                disabled={cantAfford}
+                title={cantAfford ? "캐시가 부족합니다" : undefined}
+              >
+                {free
+                  ? "팩 열기"
+                  : cantAfford
+                  ? `잔액 부족 (💎 ${formatCurrency(price - balance)} 부족)`
+                  : `팩 열기 · 💎 ${formatCurrency(price)}`}
+              </button>
+              {err && (
+                <p style={{ color: "var(--danger)", textAlign: "center", maxWidth: 480 }}>
+                  {err}
+                </p>
+              )}
             </div>
           ) : (
             <div className="opening-status">

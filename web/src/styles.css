@@ -80,6 +80,28 @@ a { color: inherit; }
 .topbar nav a:hover { color: var(--text); background: rgba(255,255,255,0.04); }
 .topbar .auth { display: flex; gap: 10px; align-items: center; }
 
+.balance-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, rgba(255,203,5,0.18), rgba(255,203,5,0.08));
+  border: 1px solid rgba(255,203,5,0.4);
+  color: var(--text);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  box-shadow: 0 0 0 0 rgba(255,203,5,0.25);
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.balance-pill.flash {
+  animation: balance-flash 0.6s ease;
+}
+@keyframes balance-flash {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,203,5,0.6); }
+  40% { transform: scale(1.08); box-shadow: 0 0 0 8px rgba(255,203,5,0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,203,5,0); }
+}
+
 .muted { color: var(--muted); font-size: 14px; }
 
 button {
@@ -172,6 +194,12 @@ a.card.pack-tile:hover {
   transform: translateY(-3px);
   border-color: var(--border-strong);
   box-shadow: var(--shadow-lg);
+}
+a.card.pack-tile.unaffordable {
+  opacity: 0.7;
+}
+a.card.pack-tile.unaffordable .thumb {
+  filter: grayscale(0.4);
 }
 .pack-tile .thumb {
   background:
