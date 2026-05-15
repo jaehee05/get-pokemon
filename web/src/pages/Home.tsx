@@ -32,7 +32,7 @@ export default function Home() {
       <h1 className="h1">팩 선택</h1>
       {!user && (
         <p className="muted">
-          팩을 열려면 우측 상단에서 Google 로그인을 해주세요.
+          팩을 열려면 우측 상단에서 로그인 또는 회원가입을 해주세요.
         </p>
       )}
       {err && <p style={{ color: "var(--danger)" }}>{err}</p>}

@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { AuthDialog } from "./AuthDialog";
 import { useAuth } from "./auth";
 import Admin from "./pages/Admin";
 import Home from "./pages/Home";
@@ -6,8 +8,9 @@ import Inventory from "./pages/Inventory";
 import PackOpen from "./pages/PackOpen";
 
 export default function App() {
-  const { user, isAdmin, loading, signIn, signOutNow } = useAuth();
+  const { user, isAdmin, loading, signOutNow } = useAuth();
   const location = useLocation();
+  const [authOpen, setAuthOpen] = useState(false);
 
   if (loading) return <div className="center">로딩...</div>;
 
@@ -22,11 +25,13 @@ export default function App() {
         <div className="auth">
           {user ? (
             <>
-              <span className="muted">{user.displayName ?? user.email}</span>
+              <span className="muted">
+                {user.displayName || user.email || "Trainer"}
+              </span>
               <button onClick={signOutNow}>로그아웃</button>
             </>
           ) : (
-            <button onClick={signIn}>Google 로그인</button>
+            <button onClick={() => setAuthOpen(true)}>로그인 / 회원가입</button>
           )}
         </div>
       </header>
@@ -48,6 +53,8 @@ export default function App() {
           />
         </Routes>
       </main>
+
+      {authOpen && <AuthDialog onClose={() => setAuthOpen(false)} />}
     </div>
   );
 }

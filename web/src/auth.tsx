@@ -1,4 +1,13 @@
-import { User, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
+import {
+  User,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  updateProfile,
+} from "firebase/auth";
 import {
   ReactNode,
   createContext,
@@ -12,7 +21,14 @@ interface AuthState {
   user: User | null;
   isAdmin: boolean;
   loading: boolean;
-  signIn: () => Promise<void>;
+  signInGoogle: () => Promise<void>;
+  signInEmail: (email: string, password: string) => Promise<void>;
+  signUpEmail: (
+    email: string,
+    password: string,
+    displayName?: string
+  ) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   signOutNow: () => Promise<void>;
   refreshClaims: () => Promise<void>;
 }
@@ -41,8 +57,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     isAdmin,
     loading,
-    signIn: async () => {
+    signInGoogle: async () => {
       await signInWithPopup(auth, googleProvider);
+    },
+    signInEmail: async (email, password) => {
+      await signInWithEmailAndPassword(auth, email, password);
+    },
+    signUpEmail: async (email, password, displayName) => {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      if (displayName) {
+        await updateProfile(cred.user, { displayName });
+      }
+    },
+    resetPassword: async (email) => {
+      await sendPasswordResetEmail(auth, email);
     },
     signOutNow: async () => {
       await signOut(auth);
