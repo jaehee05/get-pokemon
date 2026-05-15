@@ -22,22 +22,23 @@ export const ALL_RARITIES: Rarity[] = [
   "UR", "ACE", "S", "SSR", "BWR", "MUR", "MA",
 ];
 
-/** 코드 + 한글 보조 이름 (드롭다운/배지용). */
+/** 표시용 라벨. 등급 코드만 사용 (Pokemon TCG Pocket 등급 체계는
+ *  letter code 가 곧 등급 이름이고 별도 한글 번역이 일관되게 없음). */
 export const RARITY_LABEL: Record<Rarity, string> = {
-  C: "C 커먼",
-  U: "U 언커먼",
-  R: "R 레어",
-  RR: "RR 더블레어",
-  SR: "SR 슈퍼레어",
-  AR: "AR 아트레어",
-  SAR: "SAR 스페셜아트",
-  UR: "UR 울트라레어",
-  ACE: "ACE 에이스",
-  S: "S 샤이니",
-  SSR: "SSR 스페셜슈퍼레어",
-  BWR: "BWR 흑백레어",
-  MUR: "MUR 마스터울트라",
-  MA: "MA 마스터",
+  C: "C",
+  U: "U",
+  R: "R",
+  RR: "RR",
+  SR: "SR",
+  AR: "AR",
+  SAR: "SAR",
+  UR: "UR",
+  ACE: "ACE",
+  S: "S",
+  SSR: "SSR",
+  BWR: "BWR",
+  MUR: "MUR",
+  MA: "MA",
 };
 
 /** 짧은 코드 (공간 좁은 곳). */

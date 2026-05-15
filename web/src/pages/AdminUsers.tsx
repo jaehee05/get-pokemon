@@ -6,6 +6,7 @@ import {
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { useEffect, useState } from "react";
+import { InventoryEditor } from "./InventoryEditor";
 import { db, functions } from "../firebase";
 
 interface UserRow {
@@ -22,6 +23,7 @@ export default function AdminUsers() {
   const [filter, setFilter] = useState("");
   const [busyUid, setBusyUid] = useState<string | null>(null);
   const [pendingAmount, setPendingAmount] = useState<Record<string, number>>({});
+  const [editingUid, setEditingUid] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, "users"));
@@ -58,6 +60,8 @@ export default function AdminUsers() {
     );
   });
 
+  const editingUser = users.find((u) => u.uid === editingUid) ?? null;
+
   return (
     <div className="col">
       <div className="panel">
@@ -70,7 +74,7 @@ export default function AdminUsers() {
             style={{ minWidth: 260 }}
           />
           <span className="muted" style={{ fontSize: 12 }}>
-            * 사용자가 한 번이라도 팩을 열거나 로그인 후 setAdmin 을 시도해야 목록에 표시됩니다.
+            * 한 번이라도 로그인한 사용자만 표시됩니다.
           </span>
         </div>
       </div>
@@ -83,6 +87,7 @@ export default function AdminUsers() {
               <th>이메일/UID</th>
               <th style={{ textAlign: "right" }}>잔액</th>
               <th>지급</th>
+              <th>컬렉션</th>
             </tr>
           </thead>
           <tbody>
@@ -154,12 +159,28 @@ export default function AdminUsers() {
                       </button>
                     </div>
                   </td>
+                  <td>
+                    <button
+                      className="secondary"
+                      onClick={() => setEditingUid(u.uid)}
+                    >
+                      편집
+                    </button>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {editingUser && (
+        <InventoryEditor
+          uid={editingUser.uid}
+          displayName={editingUser.displayName || editingUser.email || editingUser.uid}
+          onClose={() => setEditingUid(null)}
+        />
+      )}
     </div>
   );
 }

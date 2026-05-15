@@ -299,3 +299,66 @@ export const grantCurrency = onCall<{ targetUid?: string; amount?: number }>(
     return { ok: true };
   }
 );
+
+/**
+ * 관리자가 특정 유저의 인벤토리 항목을 수정.
+ * - mode: "set" → count 를 absolute 값으로 덮어쓰기 (0 이면 doc 삭제)
+ * - mode: "add" → 기존 count 에 delta 만큼 더함 (음수 가능, 결과는 0 floor)
+ */
+export const adminEditInventory = onCall<{
+  targetUid?: string;
+  cardId?: string;
+  mode?: "set" | "add";
+  value?: number;
+}>(callable, async (request) => {
+  const uid = request.auth?.uid;
+  requireAuth(uid);
+  await requireAdmin(uid);
+  const { targetUid, cardId, mode, value } = request.data;
+  if (!targetUid || !cardId || !mode || typeof value !== "number") {
+    throw new HttpsError(
+      "invalid-argument",
+      "targetUid, cardId, mode, value 필요"
+    );
+  }
+
+  const invRef = db
+    .collection("users")
+    .doc(targetUid)
+    .collection("inventory")
+    .doc(cardId);
+
+  await db.runTransaction(async (tx) => {
+    const cur = await tx.get(invRef);
+    const curCount = (cur.data()?.count as number | undefined) ?? 0;
+    const next =
+      mode === "set" ? Math.max(0, Math.floor(value)) : Math.max(0, curCount + Math.floor(value));
+
+    if (next === 0) {
+      if (cur.exists) tx.delete(invRef);
+      return;
+    }
+
+    if (!cur.exists) {
+      tx.set(invRef, {
+        count: next,
+        firstObtainedAt: FieldValue.serverTimestamp(),
+        lastObtainedAt: FieldValue.serverTimestamp(),
+      });
+    } else {
+      tx.update(invRef, {
+        count: next,
+        lastObtainedAt: FieldValue.serverTimestamp(),
+      });
+    }
+  });
+
+  logger.info("admin inventory edit", {
+    actor: uid,
+    targetUid,
+    cardId,
+    mode,
+    value,
+  });
+  return { ok: true };
+});
