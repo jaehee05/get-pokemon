@@ -1,0 +1,55 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // 카드 마스터: 누구나 읽기, 관리자만 쓰기
+    match /cards/{cardId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 팩 정의: 확률 가중치(slots/cardPool)를 숨기기 위해 client read 차단.
+    // 일반 사용자는 callable `listActivePacks` 로 슬림 메타데이터만 받는다.
+    match /packs/{packId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // 유저 프로필
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['displayName', 'currency', 'createdAt'])
+        && request.resource.data.currency is number;
+      // currency/isAdmin 변경은 functions에서만 (admin SDK는 rules 우회)
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['displayName']);
+      allow delete: if false;
+    }
+
+    // 인벤토리: 본인 읽기 가능, 쓰기는 functions만
+    match /users/{uid}/inventory/{cardId} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if false;
+    }
+
+    // 뽑기 기록: 본인 읽기, 쓰기는 functions만
+    match /pulls/{pullId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid || isAdmin();
+      allow write: if false;
+    }
+  }
+}

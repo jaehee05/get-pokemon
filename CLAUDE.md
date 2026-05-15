@@ -4,124 +4,120 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ## Project Overview
 
-**포켓몬 카드 뽑기 (Gacha / Pack Opening)** 웹앱.
+**포켓몬 카드 뽑기 (Pokémon TCG Pocket 스타일)** 웹앱.
 
-- **관리자 (나)**: 카드 마스터 데이터를 DB에 등록하고, 카드별 등장 확률을 설정한다.
-- **사용자**: 팩을 열어 카드를 뽑고, 자신의 컬렉션을 확인한다.
+- **관리자**: 카드 마스터 + 팩 정의(슬롯별 등급 가중치)를 DB에 등록.
+- **사용자**: 팩을 열어 카드를 뽑고 자신의 컬렉션 보유.
 
-## Core Domain
-
-### Entities (초안 — Firestore 기준)
+## Repository Layout
 
 ```
-cards/{cardId}
-  name: string
-  imageUrl: string
-  rarity: "common" | "uncommon" | "rare" | "super_rare" | "secret_rare"
-  weight: number        # 확률 가중치 (예: 100 = 흔함, 1 = 시크릿)
-  isActive: boolean
-
-packs/{packId}
-  name: string          # 예: "기본 팩", "특별 팩"
-  cardCount: number     # 한 팩에 몇 장 (예: 5)
-  cardPool: cardId[]    # 이 팩에서 나올 수 있는 카드 목록 (선택)
-  price: number         # 인게임 재화 또는 0
-  rarityDistribution?: { rarity: count } # 예: 5장 중 rare 1장 보장
-
-users/{uid}
-  displayName: string
-  isAdmin: boolean
-  currency: number      # 팩 구매용 재화 (선택)
-
-users/{uid}/inventory/{cardId}
-  count: number         # 중복 보유 수
-  firstObtainedAt: timestamp
-
-pulls/{pullId}          # 뽑기 기록 (감사/통계용)
-  uid: string
-  packId: string
-  resultCardIds: cardId[]
-  createdAt: timestamp
+/firebase.json              # hosting/functions/firestore/storage/emulators
+/firestore.rules            # 클라이언트 쓰기 차단, admin claim 게이팅
+/firestore.indexes.json
+/storage.rules
+/functions/                 # Cloud Functions (Node 20, TS)
+  src/types.ts              # Rarity, Card, Pack, SlotConfig
+  src/gacha.ts              # 순수 추첨 로직 (테스트 가능)
+  src/gacha.test.ts         # vitest — 분포 검증
+  src/index.ts              # openPack / setAdmin / grantCurrency callables
+/web/                       # React + Vite + TS
+  src/firebase.ts           # SDK 초기화 + 에뮬레이터 연결
+  src/auth.tsx              # Google 로그인 + admin claim 추적
+  src/pages/Home.tsx        # 활성 팩 목록
+  src/pages/PackOpen.tsx    # openPack 호출 + 카드 뒤집기 연출
+  src/pages/Inventory.tsx   # 내 카드 컬렉션
+  src/pages/Admin*.tsx      # 카드/팩 CRUD + 슬롯 가중치 편집
 ```
 
-### 확률 계산 (가중치 방식)
+## Data Model
 
+### `cards/{cardId}`
+```ts
+{ name, imageUrl, rarity, weight, isActive }
 ```
-totalWeight = sum(card.weight for card in pool)
-roll = random() * totalWeight
-누적 합산으로 어느 카드인지 결정
+- `rarity`: `common | uncommon | rare | super_rare | secret_rare`
+- `weight`: 같은 등급 내 가중치 (기본 1, 클수록 자주 등장)
+
+### `packs/{packId}`
+```ts
+{
+  name, imageUrl, cardCount, price, isActive,
+  slots: SlotConfig[],   // length === cardCount
+  cardPool: cardId[]     // 빈 배열이면 전체 활성 카드
+}
+
+type SlotConfig = { rarityWeights: { [rarity]: number } }
 ```
 
-**보장 슬롯**(예: 5장 중 1장은 rare 이상)을 지원하려면 풀을 rarity 단위로 쪼개 각 슬롯마다 별도 가중 추첨.
+각 슬롯에서:
+1. `rarityWeights` 로 등급을 가중 추첨
+2. 그 등급의 `cardPool` 안에서 `card.weight` 로 카드를 가중 추첨
 
-## CRITICAL: 서버사이드 가챠
+**TCG Pocket 기본값** (`web/src/pages/AdminPacks.tsx` `defaultSlots`):
+- 슬롯 1-3: `{ common: 100 }`
+- 슬롯 4: `{ uncommon: 90, rare: 10 }`
+- 슬롯 5 (Hit): `{ rare: 70, super_rare: 25, secret_rare: 5 }`
 
-> **확률 계산과 카드 지급은 절대 클라이언트에서 하지 않는다.**
+### `users/{uid}` & `users/{uid}/inventory/{cardId}`
+- `currency`: 팩 구매 재화
+- `inventory.{cardId}`: `count`, `firstObtainedAt`, `lastObtainedAt`
 
-이유:
-- 클라이언트가 확률을 알면 의미가 없고, 결과를 조작할 수 있음.
-- 인벤토리 쓰기를 클라이언트에 맡기면 무한 뽑기가 가능.
+### `pulls/{pullId}`
+뽑기 감사 로그. `uid`, `packId`, `resultCardIds`, `rarities`, `createdAt`.
 
-구현:
-- **Cloud Function (callable)** `openPack(packId)` 하나로 처리:
-  1. 사용자 인증/재화 확인
-  2. 서버에서 난수 생성 + 가중 추첨
-  3. 트랜잭션으로 인벤토리/재화/pulls 기록을 한 번에 갱신
-  4. 결과 카드 배열만 반환
-- Firestore 보안 규칙은 `cards`, `packs`, `inventory`, `pulls`를 **클라이언트 쓰기 차단**, 읽기는 필요한 범위만 허용.
+## CRITICAL: 가챠는 항상 서버사이드
 
-## Suggested Stack
+- 추첨 + 인벤토리 갱신은 **반드시** `functions/src/index.ts#openPack` 안에서.
+- Firestore rules는 `cards`/`packs`/`inventory`/`pulls` 클라이언트 쓰기 차단.
+- 카드/팩 쓰기는 admin custom claim 만 허용.
+- 첫 admin은 `setAdmin` callable 부트스트랩 — admin 이 한 명도 없을 때 호출자 본인을 admin 으로 승격.
 
-사용자가 이미 Firebase를 쓰고 있으므로 동일 스택 권장:
+## 확률 가중치 락다운
 
-- **Frontend**: React + Vite (또는 Next.js, SSR 필요 없으면 Vite로 충분)
-- **Hosting**: Firebase Hosting
-- **DB**: Firestore
-- **가챠 로직**: Cloud Functions for Firebase (Node, callable functions)
-- **Auth**: Firebase Auth (Google 로그인 권장)
-- **Storage**: Firebase Storage (카드 이미지)
-
-## Admin
-
-- `users/{uid}.isAdmin === true` 또는 Firebase Auth **custom claim** `admin: true`로 게이팅.
-- 관리자 화면: 카드 CRUD, 확률(weight) 편집, 팩 정의, 뽑기 통계.
-- 보안 규칙에서 `cards`/`packs` 쓰기는 admin claim만 허용.
-
-## UX Notes
-
-- 팩 오픈 애니메이션은 결과를 **먼저 서버에서 받고**, 클라이언트는 그걸 연출만 한다. (결과 미리 확정 → 카드 뒤집기 연출)
-- 중복 카드는 인벤토리 카운트 +1, "NEW!" 뱃지는 `firstObtainedAt`로 판단.
-- 시크릿/희귀 카드는 뽑힐 때 별도 연출(빛, 진동) — 결과의 rarity 필드로 분기.
-
-## Conventions (코드 들어오면 확정)
-
-- 패키지 매니저: 첫 커밋 lockfile로 확정.
-- 커밋: Conventional Commits (`feat:`, `fix:`, `chore:` ...).
-- 디렉토리 제안:
-  ```
-  /web        # React 앱
-  /functions  # Cloud Functions
-  /firestore.rules
-  /storage.rules
-  ```
+- `packs/{packId}` 의 client read 는 **admin 만 허용**. 일반 사용자는 `slots`/`cardPool`/`weight` 를 못 본다.
+- 사용자용 슬림 메타데이터는 callable `listActivePacks` 로만 노출 — `{ id, name, imageUrl, cardCount, price }` 만 반환.
+- 따라서 새 사용자 화면에서 팩 정보가 필요하면 Firestore 직접 read 하지 말고 `listActivePacks` 호출. 직접 read 하는 코드는 admin 화면에서만.
 
 ## Common Commands
 
-코드가 들어오면 실제 값으로 교체:
-
 ```bash
-# web 개발
-# npm run dev
+# functions
+cd functions
+npm install
+npm run build          # tsc
+npm test               # vitest (gacha 분포 검증)
 
-# functions 로컬 에뮬레이터
-# firebase emulators:start
+# web
+cd web
+npm install
+cp .env.example .env   # Firebase config 채우기
+npm run dev            # http://localhost:5173
+npm run build
+
+# 로컬 풀스택 에뮬레이터
+firebase emulators:start
 
 # 배포
-# firebase deploy --only hosting,functions,firestore:rules
+firebase deploy --only firestore:rules,storage,functions,hosting
 ```
+
+## Setup (최초 1회)
+
+1. Firebase 콘솔에서 프로젝트 생성, **Authentication → Google** 활성화, **Firestore** 만들기.
+2. 루트에서 `firebase use --add` 로 프로젝트 연결.
+3. `web/.env` 에 Firebase web SDK 설정 채우기.
+4. `firebase deploy --only firestore:rules,storage,functions,hosting`.
+5. 배포된 사이트에서 Google 로그인 후 브라우저 콘솔:
+   ```js
+   const { getFunctions, httpsCallable } = await import("firebase/functions");
+   await httpsCallable(getFunctions(undefined, "asia-northeast3"), "setAdmin")({});
+   ```
+   첫 호출자가 admin. 이후 로그아웃→재로그인 (claim refresh).
 
 ## Notes for Claude
 
-- 가챠 관련 코드를 작성/수정할 때 **항상 서버사이드 위치인지 먼저 확인**. 클라이언트에서 확률/지급을 다루는 PR은 거절.
-- 카드/팩/유저 인벤토리 스키마가 위 초안과 어긋나기 시작하면 이 문서를 같이 업데이트.
-- 보안 규칙 변경은 항상 에뮬레이터로 테스트 후 배포.
+- **가챠 로직을 클라이언트로 옮기는 PR은 거절.**
+- `cardCount` 와 `slots.length` 가 항상 일치 — 어드민에서 자동 동기화하고 서버에서도 한 번 더 검증함.
+- 새 rarity 추가 시: `functions/src/types.ts` + `web/src/types.ts` 양쪽 업데이트.
+- 분포 변경 후엔 `functions/` 의 `npm test` 통계 검증 thresholds 확인.
