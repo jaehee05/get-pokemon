@@ -90,7 +90,10 @@ export default function Home() {
                   )}
                   <span className="badge">{p.cardCount}장</span>
                   {soldOut ? (
-                    <span className="sold-out-stamp">SOLD OUT</span>
+                    <div className="sold-out-stamp">
+                      <span className="ko">품절</span>
+                      <span className="en">sold out</span>
+                    </div>
                   ) : (
                     <>
                       {cantAfford && (

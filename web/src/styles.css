@@ -203,31 +203,56 @@ a.card.pack-tile.unaffordable .thumb {
 }
 a.card.pack-tile.sold-out {
   cursor: not-allowed;
-  opacity: 0.55;
 }
 a.card.pack-tile.sold-out .thumb {
-  filter: grayscale(0.85) brightness(0.85);
+  filter: grayscale(1) brightness(0.55);
+}
+a.card.pack-tile.sold-out .thumb::before {
+  /* 풀 커버 어두운 스크림 */
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0.55));
+  z-index: 1;
+  pointer-events: none;
 }
 a.card.pack-tile.sold-out:hover {
   transform: none;
   box-shadow: var(--shadow-sm);
 }
+a.card.pack-tile.sold-out .name {
+  color: var(--muted);
+}
 .sold-out-stamp {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(-12deg);
-  background: rgba(244, 63, 94, 0.92);
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 14px 22px;
+  background: rgba(8, 10, 16, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   color: #fff;
-  padding: 6px 18px;
-  font-weight: 900;
-  letter-spacing: 0.18em;
-  font-size: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  border-radius: 4px;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
   z-index: 2;
   pointer-events: none;
+  min-width: 110px;
+}
+.sold-out-stamp .ko {
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.04em;
+}
+.sold-out-stamp .en {
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 700;
+  text-transform: uppercase;
 }
 .pack-tile .thumb {
   background:

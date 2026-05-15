@@ -215,18 +215,22 @@ export default function PackOpen() {
               {availability === 0 ? (
                 <div
                   style={{
-                    padding: "18px 26px",
+                    padding: "20px 28px",
                     borderRadius: 14,
-                    background: "rgba(244, 63, 94, 0.12)",
-                    border: "1px solid rgba(244, 63, 94, 0.4)",
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid var(--border-strong)",
                     textAlign: "center",
                     maxWidth: 420,
+                    backdropFilter: "blur(4px)",
                   }}
                 >
-                  <div style={{ fontSize: 22, fontWeight: 800, color: "var(--danger)", letterSpacing: "0.06em" }}>
-                    품절 · SOLD OUT
+                  <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "0.04em" }}>
+                    품절
                   </div>
-                  <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
+                  <div style={{ fontSize: 10, letterSpacing: "0.32em", color: "var(--muted)", marginTop: 2, fontWeight: 700, textTransform: "uppercase" }}>
+                    sold out
+                  </div>
+                  <p className="muted" style={{ margin: "10px 0 0", fontSize: 13 }}>
                     이 팩에서 뽑을 수 있는 카드 재고가 없습니다.
                   </p>
                 </div>
