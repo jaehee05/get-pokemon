@@ -1,5 +1,5 @@
 import { httpsCallable } from "firebase/functions";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AuthDialog } from "./AuthDialog";
 import { useAuth } from "./auth";
@@ -14,6 +14,14 @@ export default function App() {
   const location = useLocation();
   const [authOpen, setAuthOpen] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  // null = 모르는 상태(체크 중), true = admin 존재, false = 아직 없음
+  const [systemHasAdmin, setSystemHasAdmin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    httpsCallable<unknown, { hasAdmin: boolean }>(functions, "getAdminStatus")({})
+      .then((r) => setSystemHasAdmin(r.data.hasAdmin))
+      .catch(() => setSystemHasAdmin(null));
+  }, [user]);
 
   async function claimAdmin() {
     if (!confirm("관리자 권한을 시도합니다. (아직 등록된 admin 이 없는 첫 호출자만 통과)")) return;
@@ -25,9 +33,11 @@ export default function App() {
       )({})) as { data: { ok: boolean; bootstrapped: boolean } };
       if (r.data.bootstrapped) {
         alert("관리자 권한 부여 완료. 권한 갱신 중...");
+        setSystemHasAdmin(true);
         await refreshClaims();
       } else {
         alert("이미 admin 이 존재합니다. 다른 admin 에게 권한을 받아야 합니다.");
+        setSystemHasAdmin(true);
       }
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : String(e));
@@ -35,6 +45,8 @@ export default function App() {
       setClaiming(false);
     }
   }
+
+  const showClaimButton = !!user && !isAdmin && systemHasAdmin === false;
 
   if (loading) return <div className="center">로딩...</div>;
 
@@ -52,7 +64,7 @@ export default function App() {
               <span className="muted">
                 {user.displayName || user.email || "Trainer"}
               </span>
-              {!isAdmin && (
+              {showClaimButton && (
                 <button
                   className="secondary"
                   onClick={claimAdmin}

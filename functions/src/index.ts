@@ -188,6 +188,19 @@ export const setAdmin = onCall<{ targetUid?: string; admin?: boolean }>(
 );
 
 /**
+ * 시스템에 admin 이 한 명이라도 존재하는지 확인.
+ * 클라이언트가 "Admin 받기" 부트스트랩 버튼을 숨길지 판단할 때 사용.
+ */
+export const getAdminStatus = onCall(callable, async () => {
+  const snap = await db
+    .collection("users")
+    .where("isAdmin", "==", true)
+    .limit(1)
+    .get();
+  return { hasAdmin: !snap.empty };
+});
+
+/**
  * 활성 팩 목록 — 확률/풀 정보 없이 슬림 메타데이터만 반환.
  * 누구나 호출 가능 (auth 불요).
  */
