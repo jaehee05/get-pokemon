@@ -3,12 +3,16 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
+  query,
   updateDoc,
+  where,
+  writeBatch,
 } from "firebase/firestore";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { db } from "../firebase";
-import { Expansion } from "../types";
+import { ALL_RARITIES, Expansion, RARITY_COLOR, Rarity } from "../types";
 
 const blank: Omit<Expansion, "id"> = {
   code: "",
@@ -23,9 +27,7 @@ export default function AdminExpansions() {
 
   useEffect(() => {
     return onSnapshot(collection(db, "expansions"), (s) => {
-      setExps(
-        s.docs.map((d) => ({ id: d.id, ...d.data() }) as Expansion)
-      );
+      setExps(s.docs.map((d) => ({ id: d.id, ...d.data() }) as Expansion));
     });
   }, []);
 
@@ -40,7 +42,7 @@ export default function AdminExpansions() {
   }
 
   async function remove(id: string) {
-    if (!confirm("이 확장팩을 삭제할까요? (이 확장팩으로 등록된 카드들은 expansionId 가 끊깁니다)"))
+    if (!confirm("이 확장팩을 삭제할까요? (소속 카드들의 expansionId 가 끊깁니다)"))
       return;
     await deleteDoc(doc(db, "expansions", id));
   }
@@ -140,14 +142,232 @@ export default function AdminExpansions() {
                   />
                 </td>
                 <td>
-                  <button className="danger" onClick={() => remove(e.id)}>
-                    삭제
-                  </button>
+                  <button className="danger" onClick={() => remove(e.id)}>삭제</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      <BulkImport exps={exps} />
+    </div>
+  );
+}
+
+/* ---------- Bulk import ---------- */
+
+interface ParsedRow {
+  raw: string;
+  num: number | null;
+  name: string;
+  rarity: string;
+  valid: boolean;
+  reason?: string;
+}
+
+const RARITY_SET: ReadonlySet<string> = new Set(ALL_RARITIES);
+
+function parseBulk(text: string): ParsedRow[] {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map<ParsedRow>((line) => {
+      const tokens = line.split(/\s+/);
+      if (tokens.length < 3) {
+        return { raw: line, num: null, name: "", rarity: "", valid: false, reason: "필드 부족 (번호 / 이름 / 등급 필요)" };
+      }
+      const numToken = tokens[0];
+      const rarityToken = tokens[tokens.length - 1];
+      const name = tokens.slice(1, -1).join(" ");
+      const numStr = numToken.split("/")[0];
+      const num = Number.parseInt(numStr, 10);
+      if (!Number.isFinite(num)) {
+        return { raw: line, num: null, name, rarity: rarityToken, valid: false, reason: `번호 파싱 실패: ${numToken}` };
+      }
+      if (!RARITY_SET.has(rarityToken)) {
+        return { raw: line, num, name, rarity: rarityToken, valid: false, reason: `알 수 없는 등급: ${rarityToken}` };
+      }
+      return { raw: line, num, name, rarity: rarityToken, valid: true };
+    });
+}
+
+function BulkImport({ exps }: { exps: Expansion[] }) {
+  const [expansionId, setExpansionId] = useState<string>("");
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [report, setReport] = useState<{
+    created: number; updated: number; skipped: number;
+  } | null>(null);
+
+  const parsed = useMemo(() => parseBulk(text), [text]);
+  const valid = parsed.filter((r) => r.valid);
+  const invalid = parsed.filter((r) => !r.valid);
+
+  async function submit() {
+    if (!expansionId) return;
+    if (valid.length === 0) return;
+    setBusy(true);
+    setReport(null);
+    try {
+      const existingSnap = await getDocs(
+        query(collection(db, "cards"), where("expansionId", "==", expansionId))
+      );
+      const byNumber = new Map<number, string>();
+      existingSnap.forEach((d) => {
+        const data = d.data() as { number?: unknown };
+        if (typeof data.number === "number") byNumber.set(data.number, d.id);
+      });
+
+      // Firestore batch 한도 500 — 안전하게 청크.
+      let created = 0, updated = 0;
+      for (let i = 0; i < valid.length; i += 400) {
+        const chunk = valid.slice(i, i + 400);
+        const batch = writeBatch(db);
+        for (const row of chunk) {
+          if (row.num == null) continue;
+          const existingId = byNumber.get(row.num);
+          if (existingId) {
+            batch.update(doc(db, "cards", existingId), {
+              name: row.name,
+              rarity: row.rarity as Rarity,
+              number: row.num,
+              expansionId,
+            });
+            updated++;
+          } else {
+            const newRef = doc(collection(db, "cards"));
+            batch.set(newRef, {
+              name: row.name,
+              rarity: row.rarity as Rarity,
+              number: row.num,
+              expansionId,
+              imageUrl: "",
+              weight: 1,
+              isActive: true,
+            });
+            created++;
+          }
+        }
+        await batch.commit();
+      }
+      setReport({ created, updated, skipped: invalid.length });
+      setText("");
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="panel">
+      <h2 className="h2">벌크 등록 (확장팩 카드 리스트)</h2>
+      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+        한 줄에 <code className="mini">번호 이름 등급</code> 순. 번호는 <code className="mini">001/083</code> 또는 <code className="mini">1</code> 둘 다 OK.
+        구분자는 탭 또는 공백. 같은 번호가 이미 있으면 덮어쓰기 (이미지/가중치/활성 상태는 유지).
+      </p>
+      <div className="row" style={{ marginBottom: 10 }}>
+        <label>
+          대상 확장팩
+          <select
+            value={expansionId}
+            onChange={(e) => setExpansionId(e.target.value)}
+            style={{ minWidth: 180 }}
+          >
+            <option value="">— 선택 —</option>
+            {exps.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.code} {e.name ? `(${e.name})` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <textarea
+        rows={10}
+        placeholder={"001/083\t뿔충이\tC\n002/083\t딱충이\tC\n003/083\t독침붕\tRR\n..."}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        style={{ width: "100%", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 13 }}
+      />
+
+      {parsed.length > 0 && (
+        <div className="row" style={{ marginTop: 8, fontSize: 13 }}>
+          <span>총 <b>{parsed.length}</b>행</span>
+          <span style={{ color: "var(--ok)" }}>정상 {valid.length}</span>
+          {invalid.length > 0 && (
+            <span style={{ color: "var(--danger)" }}>오류 {invalid.length}</span>
+          )}
+        </div>
+      )}
+
+      {valid.length > 0 && (
+        <div style={{ marginTop: 10, maxHeight: 220, overflow: "auto" }}>
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: 70 }}>번호</th>
+                <th>이름</th>
+                <th style={{ width: 80 }}>등급</th>
+              </tr>
+            </thead>
+            <tbody>
+              {valid.slice(0, 200).map((r, i) => (
+                <tr key={i}>
+                  <td><code className="mini">{String(r.num).padStart(3, "0")}</code></td>
+                  <td>{r.name}</td>
+                  <td>
+                    <span
+                      className="rarity-pill"
+                      style={{ background: RARITY_COLOR[r.rarity as Rarity] }}
+                    >
+                      {r.rarity}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {valid.length > 200 && (
+                <tr><td colSpan={3} className="muted">… {valid.length - 200}행 더</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {invalid.length > 0 && (
+        <div style={{ marginTop: 10, maxHeight: 160, overflow: "auto" }}>
+          <p className="muted" style={{ fontSize: 12, color: "var(--danger)" }}>
+            처리 불가 {invalid.length}건:
+          </p>
+          <table>
+            <tbody>
+              {invalid.slice(0, 50).map((r, i) => (
+                <tr key={i}>
+                  <td style={{ color: "var(--danger)", fontSize: 12 }}>{r.reason}</td>
+                  <td><code className="mini">{r.raw}</code></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="row" style={{ marginTop: 12 }}>
+        <button
+          onClick={submit}
+          disabled={busy || !expansionId || valid.length === 0}
+        >
+          {busy ? "등록 중..." : `${valid.length}건 등록 / 업데이트`}
+        </button>
+        {report && (
+          <span style={{ color: "var(--ok)", fontSize: 14 }}>
+            ✔ 신규 {report.created} · 업데이트 {report.updated}
+            {report.skipped > 0 ? ` · 건너뜀 ${report.skipped}` : ""}
+          </span>
+        )}
       </div>
     </div>
   );
