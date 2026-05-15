@@ -65,7 +65,29 @@ export const openPack = onCall<{ packId?: string }>(callable, async (request) =>
     allCards = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Card);
   }
 
-  const result = runGacha(pack, allCards);
+  // 빠른 가드: 재고 가능한 카드가 없으면 즉시 의미있는 에러
+  const drawable = allCards.filter(
+    (c) => c.isActive && (c.stock ?? 0) > 0
+  );
+  if (drawable.length === 0) {
+    logger.warn("openPack: no drawable cards", {
+      packId,
+      poolSize: allCards.length,
+    });
+    throw new HttpsError(
+      "failed-precondition",
+      "이 팩에서 뽑을 수 있는 카드 재고가 없습니다. 관리자에게 문의하세요."
+    );
+  }
+
+  let result;
+  try {
+    result = runGacha(pack, allCards);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.warn("openPack: gacha failed", { packId, msg });
+    throw new HttpsError("failed-precondition", `가챠 실패: ${msg}`);
+  }
 
   // 트랜잭션: 재화 차감 + 인벤토리 갱신 + 뽑기 기록
   const pullRef = db.collection("pulls").doc();
@@ -85,7 +107,9 @@ export const openPack = onCall<{ packId?: string }>(callable, async (request) =>
     ref: db.collection("cards").doc(cardId),
   }));
 
-  const currencyAfter = await db.runTransaction(async (tx) => {
+  let currencyAfter: number;
+  try {
+    currencyAfter = await db.runTransaction(async (tx) => {
     // === reads first ===
     const userDoc = await tx.get(userRef);
     const invDocs = await Promise.all(inventoryRefs.map(({ ref }) => tx.get(ref)));
@@ -151,7 +175,13 @@ export const openPack = onCall<{ packId?: string }>(callable, async (request) =>
     });
 
     return next;
-  });
+    });
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.error("openPack: transaction failed", { packId, msg });
+    throw new HttpsError("internal", `트랜잭션 실패: ${msg}`);
+  }
 
   logger.info("pack opened", {
     uid,
