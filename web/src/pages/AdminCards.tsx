@@ -185,16 +185,37 @@ export default function AdminCards() {
               const label = formatCardNumber(c, exp);
               return (
                 <tr key={c.id}>
-                  <td>
-                    {c.imageUrl ? (
-                      <img
-                        src={c.imageUrl}
-                        alt=""
-                        style={{ width: 40, height: 56, objectFit: "cover", borderRadius: 4 }}
+                  <td style={{ verticalAlign: "top" }}>
+                    <div className="col" style={{ gap: 4, alignItems: "flex-start" }}>
+                      {c.imageUrl ? (
+                        <img
+                          src={c.imageUrl}
+                          alt=""
+                          style={{ width: 40, height: 56, objectFit: "cover", borderRadius: 4 }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: 40, height: 56,
+                            display: "grid", placeItems: "center",
+                            background: "var(--panel-2)",
+                            border: "1px dashed var(--border-strong)",
+                            borderRadius: 4,
+                            color: "var(--muted)",
+                            fontSize: 10,
+                          }}
+                        >
+                          없음
+                        </div>
+                      )}
+                      <input
+                        value={c.imageUrl ?? ""}
+                        onChange={(e) => patch(c.id, "imageUrl", e.target.value)}
+                        placeholder="이미지 URL"
+                        style={{ width: 180, padding: "4px 6px", fontSize: 11 }}
+                        title={c.imageUrl || "URL 입력"}
                       />
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
+                    </div>
                   </td>
                   <td>
                     <input
