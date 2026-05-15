@@ -1,13 +1,17 @@
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { CallableOptions, HttpsError, onCall } from "firebase-functions/v2/https";
 import { logger, setGlobalOptions } from "firebase-functions/v2";
 import { openPack as runGacha } from "./gacha";
 import { Card, Pack } from "./types";
 
 initializeApp();
 setGlobalOptions({ region: "asia-northeast3", maxInstances: 10 });
+
+// 모든 callable 에 동일하게 적용할 옵션. cors: true 로 모든 origin 허용
+// (auth 는 함수 내부에서 검증).
+const callable: CallableOptions = { cors: true };
 
 const db = getFirestore();
 const auth = getAuth();
@@ -30,7 +34,7 @@ async function requireAdmin(uid: string): Promise<void> {
  * 입력: { packId: string }
  * 출력: { cards: Card[], pullId: string, currencyAfter: number }
  */
-export const openPack = onCall<{ packId?: string }>(async (request) => {
+export const openPack = onCall<{ packId?: string }>(callable, async (request) => {
   const uid = request.auth?.uid;
   requireAuth(uid);
 
@@ -144,6 +148,7 @@ export const openPack = onCall<{ packId?: string }>(async (request) => {
  * users 컬렉션에 admin 이 한 명도 없으면 호출자 본인을 admin 으로 만든다.
  */
 export const setAdmin = onCall<{ targetUid?: string; admin?: boolean }>(
+  callable,
   async (request) => {
     const uid = request.auth?.uid;
     requireAuth(uid);
@@ -186,7 +191,7 @@ export const setAdmin = onCall<{ targetUid?: string; admin?: boolean }>(
  * 활성 팩 목록 — 확률/풀 정보 없이 슬림 메타데이터만 반환.
  * 누구나 호출 가능 (auth 불요).
  */
-export const listActivePacks = onCall(async () => {
+export const listActivePacks = onCall(callable, async () => {
   const snap = await db
     .collection("packs")
     .where("isActive", "==", true)
@@ -207,6 +212,7 @@ export const listActivePacks = onCall(async () => {
 
 /** 유저 재화 충전 (관리자 전용 — 테스트/이벤트용). */
 export const grantCurrency = onCall<{ targetUid?: string; amount?: number }>(
+  callable,
   async (request) => {
     const uid = request.auth?.uid;
     requireAuth(uid);
