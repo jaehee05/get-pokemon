@@ -201,6 +201,34 @@ a.card.pack-tile.unaffordable {
 a.card.pack-tile.unaffordable .thumb {
   filter: grayscale(0.4);
 }
+a.card.pack-tile.sold-out {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+a.card.pack-tile.sold-out .thumb {
+  filter: grayscale(0.85) brightness(0.85);
+}
+a.card.pack-tile.sold-out:hover {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+}
+.sold-out-stamp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-12deg);
+  background: rgba(244, 63, 94, 0.92);
+  color: #fff;
+  padding: 6px 18px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  font-size: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  border-radius: 4px;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  z-index: 2;
+  pointer-events: none;
+}
 .pack-tile .thumb {
   background:
     radial-gradient(120% 80% at 30% 20%, rgba(255, 203, 5, 0.25), transparent 60%),

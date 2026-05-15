@@ -352,24 +352,68 @@ export const getPackAvailability = onCall<{ packId?: string }>(
 );
 
 /**
- * 활성 팩 목록 — 확률/풀 정보 없이 슬림 메타데이터만 반환.
+ * 활성 팩 목록 — 확률/풀 정보 없이 슬림 메타데이터 + 잔여 수량 추정치.
  * 누구나 호출 가능 (auth 불요).
  */
 export const listActivePacks = onCall(callable, async () => {
-  const snap = await db
-    .collection("packs")
-    .where("isActive", "==", true)
-    .get();
+  const [packSnap, cardSnap] = await Promise.all([
+    db.collection("packs").where("isActive", "==", true).get(),
+    db.collection("cards").where("isActive", "==", true).get(),
+  ]);
+
+  const allActiveCards = cardSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Card);
+
   return {
-    packs: snap.docs.map((d) => {
-      const p = d.data();
+    packs: packSnap.docs.map((d) => {
+      const p = { id: d.id, ...d.data() } as Pack;
+
+      // 풀 적용
+      let pool: Card[];
+      if (p.cardPool && p.cardPool.length > 0) {
+        const set = new Set(p.cardPool);
+        pool = allActiveCards.filter((c) => set.has(c.id));
+      } else {
+        pool = allActiveCards;
+      }
+
+      // 등급별 stock 합
+      const stockByRarity = new Map<string, number>();
+      for (const c of pool) {
+        const s = c.stock ?? 0;
+        if (s <= 0) continue;
+        stockByRarity.set(c.rarity, (stockByRarity.get(c.rarity) ?? 0) + s);
+      }
+
+      // 등급별 1팩당 기대 사용량
+      const expectedPerPack = new Map<string, number>();
+      for (const slot of p.slots ?? []) {
+        const entries = Object.entries(slot.rarityWeights ?? {}).filter(
+          ([, w]) => typeof w === "number" && (w as number) > 0
+        ) as [string, number][];
+        const totalW = entries.reduce((s, [, w]) => s + w, 0);
+        if (totalW <= 0) continue;
+        for (const [r, w] of entries) {
+          expectedPerPack.set(r, (expectedPerPack.get(r) ?? 0) + w / totalW);
+        }
+      }
+
+      let bottleneck = Number.POSITIVE_INFINITY;
+      for (const [r, exp] of expectedPerPack) {
+        if (exp <= 0) continue;
+        const have = stockByRarity.get(r) ?? 0;
+        const can = have / exp;
+        if (can < bottleneck) bottleneck = can;
+      }
+      const approxPacksRemaining = Number.isFinite(bottleneck) ? Math.floor(bottleneck) : 0;
+
       return {
-        id: d.id,
-        name: p.name as string,
-        imageUrl: (p.imageUrl as string | undefined) ?? "",
-        cardBackImageUrl: (p.cardBackImageUrl as string | undefined) ?? "",
-        cardCount: p.cardCount as number,
-        price: (p.price as number | undefined) ?? 0,
+        id: p.id,
+        name: p.name,
+        imageUrl: p.imageUrl ?? "",
+        cardBackImageUrl: p.cardBackImageUrl ?? "",
+        cardCount: p.cardCount,
+        price: p.price ?? 0,
+        approxPacksRemaining,
       };
     }),
   };

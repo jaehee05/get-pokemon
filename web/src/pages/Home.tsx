@@ -11,6 +11,7 @@ interface PackMeta {
   imageUrl: string;
   cardCount: number;
   price: number;
+  approxPacksRemaining: number;
 }
 
 export default function Home() {
@@ -65,12 +66,21 @@ export default function Home() {
           {packs.map((p) => {
             const free = (p.price ?? 0) === 0;
             const cantAfford = user && !free && balance < p.price;
+            const soldOut = (p.approxPacksRemaining ?? 0) <= 0;
+            const lowStock = !soldOut && p.approxPacksRemaining <= 5;
+            const dimmed = soldOut || cantAfford;
             return (
               <Link
                 key={p.id}
                 to={`/pack/${p.id}`}
-                className={`card pack-tile${cantAfford ? " unaffordable" : ""}`}
+                className={`card pack-tile${dimmed ? " unaffordable" : ""}${soldOut ? " sold-out" : ""}`}
                 style={{ textDecoration: "none", color: "inherit" }}
+                onClick={(e) => {
+                  if (soldOut) {
+                    e.preventDefault();
+                    alert("이 팩은 현재 재고가 없습니다.");
+                  }
+                }}
               >
                 <div className="thumb">
                   {p.imageUrl ? (
@@ -79,18 +89,37 @@ export default function Home() {
                     <span className="pack-icon">📦</span>
                   )}
                   <span className="badge">{p.cardCount}장</span>
-                  {cantAfford && (
-                    <span
-                      className="badge"
-                      style={{
-                        top: "auto",
-                        bottom: 10,
-                        background: "rgba(244, 63, 94, 0.85)",
-                        borderColor: "rgba(244, 63, 94, 0.4)",
-                      }}
-                    >
-                      잔액 부족
-                    </span>
+                  {soldOut ? (
+                    <span className="sold-out-stamp">SOLD OUT</span>
+                  ) : (
+                    <>
+                      {cantAfford && (
+                        <span
+                          className="badge"
+                          style={{
+                            top: "auto",
+                            bottom: 10,
+                            background: "rgba(244, 63, 94, 0.85)",
+                            borderColor: "rgba(244, 63, 94, 0.4)",
+                          }}
+                        >
+                          잔액 부족
+                        </span>
+                      )}
+                      {lowStock && !cantAfford && (
+                        <span
+                          className="badge"
+                          style={{
+                            top: "auto",
+                            bottom: 10,
+                            background: "rgba(245, 158, 11, 0.85)",
+                            borderColor: "rgba(245, 158, 11, 0.4)",
+                          }}
+                        >
+                          약 {p.approxPacksRemaining}팩 남음
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
                 <div className="row" style={{ justifyContent: "space-between" }}>
@@ -99,10 +128,16 @@ export default function Home() {
                     style={{
                       fontWeight: 700,
                       fontSize: 14,
-                      color: free ? "var(--ok)" : cantAfford ? "var(--danger)" : "var(--accent)",
+                      color: soldOut
+                        ? "var(--muted)"
+                        : free
+                        ? "var(--ok)"
+                        : cantAfford
+                        ? "var(--danger)"
+                        : "var(--accent)",
                     }}
                   >
-                    {free ? "무료" : `💎 ${formatCurrency(p.price)}`}
+                    {soldOut ? "품절" : free ? "무료" : `💎 ${formatCurrency(p.price)}`}
                   </div>
                 </div>
               </Link>

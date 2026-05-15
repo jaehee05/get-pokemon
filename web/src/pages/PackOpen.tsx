@@ -212,40 +212,63 @@ export default function PackOpen() {
 
           {stage === "idle" ? (
             <div className="col" style={{ alignItems: "center", gap: 12 }}>
-              <div className="row" style={{ gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-                {[1, 5, 10].map((n) => {
-                  const cost = price * n;
-                  const cant = !free && balance < cost;
-                  const exceeds = availability != null && n > availability;
-                  const disabled = cant || exceeds;
-                  return (
-                    <button
-                      key={n}
-                      onClick={() => open(n)}
-                      className={n === 1 ? "open-btn" : "secondary"}
-                      disabled={disabled}
-                      title={
-                        cant
-                          ? "캐시가 부족합니다"
-                          : exceeds
-                          ? "재고가 부족합니다"
-                          : undefined
-                      }
-                      style={n === 1 ? undefined : { padding: "12px 22px", fontSize: 14, borderRadius: 999 }}
-                    >
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1.2 }}>
-                        <span style={{ fontSize: 15, fontWeight: 800 }}>{n}팩</span>
-                        <span style={{ fontSize: 11, opacity: 0.85 }}>
-                          {free ? "무료" : `💎 ${formatCurrency(cost)}`}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              {availability != null && (
+              {availability === 0 ? (
+                <div
+                  style={{
+                    padding: "18px 26px",
+                    borderRadius: 14,
+                    background: "rgba(244, 63, 94, 0.12)",
+                    border: "1px solid rgba(244, 63, 94, 0.4)",
+                    textAlign: "center",
+                    maxWidth: 420,
+                  }}
+                >
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "var(--danger)", letterSpacing: "0.06em" }}>
+                    품절 · SOLD OUT
+                  </div>
+                  <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
+                    이 팩에서 뽑을 수 있는 카드 재고가 없습니다.
+                  </p>
+                </div>
+              ) : (
+                <div className="row" style={{ gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                  {[1, 5, 10].map((n) => {
+                    const cost = price * n;
+                    const cant = !free && balance < cost;
+                    const exceeds = availability != null && n > availability;
+                    const disabled = cant || exceeds;
+                    return (
+                      <button
+                        key={n}
+                        onClick={() => open(n)}
+                        className={n === 1 ? "open-btn" : "secondary"}
+                        disabled={disabled}
+                        title={
+                          cant
+                            ? "캐시가 부족합니다"
+                            : exceeds
+                            ? "재고가 부족합니다"
+                            : undefined
+                        }
+                        style={n === 1 ? undefined : { padding: "12px 22px", fontSize: 14, borderRadius: 999 }}
+                      >
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1.2 }}>
+                          <span style={{ fontSize: 15, fontWeight: 800 }}>{n}팩</span>
+                          <span style={{ fontSize: 11, opacity: 0.85 }}>
+                            {free ? "무료" : `💎 ${formatCurrency(cost)}`}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {availability != null && availability > 0 && (
                 <span className="muted" style={{ fontSize: 12 }}>
-                  현재 재고로 약 <b style={{ color: availability > 0 ? "var(--text)" : "var(--danger)" }}>{availability}</b>팩 분량 남음
+                  현재 재고로 약 <b>{availability}</b>팩 분량 남음
+                  {availability <= 5 && (
+                    <span style={{ color: "var(--accent)", marginLeft: 6 }}>· 잔여 적음</span>
+                  )}
                 </span>
               )}
               {err && (
