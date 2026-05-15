@@ -60,6 +60,11 @@ export interface OpenPackResult {
   rarities: Rarity[];
 }
 
+export interface OpenPacksResult {
+  /** 각 팩별 결과 (count 개). */
+  packs: OpenPackResult[];
+}
+
 /**
  * 한 팩 오픈. 슬롯마다:
  *   1) rarityWeights 로 등급을 가중 추첨
@@ -111,4 +116,64 @@ export function openPack(
   }
 
   return { cards, rarities };
+}
+
+/**
+ * 한 번에 여러 팩 오픈 (묶음 구매). 팩 간에도 재고가 공유되므로,
+ * 동일 카드가 단일 재고일 때 두 팩에서 모두 뽑히지 않도록 로컬 stock 을
+ * 누적 차감해가며 시뮬레이션.
+ */
+export function openPacks(
+  pack: Pack,
+  allCards: Card[],
+  count: number,
+  rng: Rng = defaultRng
+): OpenPacksResult {
+  if (count < 1) throw new Error("count must be >= 1");
+
+  if (pack.slots.length !== pack.cardCount) {
+    throw new Error(
+      `pack ${pack.id}: slots.length (${pack.slots.length}) != cardCount (${pack.cardCount})`
+    );
+  }
+
+  const poolIds =
+    pack.cardPool.length > 0 ? new Set(pack.cardPool) : null;
+  const eligible = allCards.filter(
+    (c) =>
+      c.isActive &&
+      (c.stock ?? 0) > 0 &&
+      (poolIds === null || poolIds.has(c.id))
+  );
+
+  // 모든 팩에 걸쳐 공유되는 로컬 stock 카운터
+  const localStock = new Map<string, number>();
+  for (const c of eligible) localStock.set(c.id, c.stock ?? 0);
+
+  const packs: OpenPackResult[] = [];
+  for (let p = 0; p < count; p++) {
+    const cards: Card[] = [];
+    const rarities: Rarity[] = [];
+
+    for (let i = 0; i < pack.slots.length; i++) {
+      const slot = pack.slots[i];
+      const rarity = weightedPickKey<Rarity>(slot.rarityWeights, rng);
+      const candidates = eligible.filter(
+        (c) => c.rarity === rarity && (localStock.get(c.id) ?? 0) > 0
+      );
+      if (candidates.length === 0) {
+        throw new Error(
+          `pack ${pack.id} (#${p + 1}/${count}) slot ${i}: 등급 "${rarity}" 뽑혔지만 재고 가능한 카드 없음`
+        );
+      }
+      const card = weightedPickItem(candidates, (c) => c.weight, rng);
+      localStock.set(card.id, (localStock.get(card.id) ?? 0) - 1);
+      cards.push(card);
+      rarities.push(rarity);
+    }
+
+    packs.push({ cards, rarities });
+  }
+
+  return { packs };
 }

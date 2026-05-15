@@ -3,7 +3,7 @@ import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { CallableOptions, HttpsError, onCall } from "firebase-functions/v2/https";
 import { logger, setGlobalOptions } from "firebase-functions/v2";
-import { openPack as runGacha } from "./gacha";
+import { openPacks as runGacha } from "./gacha";
 import { Card, Pack } from "./types";
 
 initializeApp();
@@ -31,18 +31,29 @@ async function requireAdmin(uid: string): Promise<void> {
   }
 }
 
+const MAX_PACK_COUNT = 10;
+
 /**
  * 팩 열기 — 서버사이드 추첨.
- * 입력: { packId: string }
- * 출력: { cards: Card[], pullId: string, currencyAfter: number }
+ * 입력: { packId: string, count?: number (1..10, 기본 1) }
+ * 출력: 묶음 결과 (count == 1 이어도 packs 배열 길이 1).
  */
-export const openPack = onCall<{ packId?: string }>(callable, async (request) => {
+export const openPack = onCall<{ packId?: string; count?: number }>(callable, async (request) => {
   const uid = request.auth?.uid;
   requireAuth(uid);
 
   const packId = request.data.packId;
   if (!packId || typeof packId !== "string") {
     throw new HttpsError("invalid-argument", "packId 가 필요합니다.");
+  }
+
+  const rawCount = request.data.count ?? 1;
+  const count = Math.floor(rawCount);
+  if (!Number.isFinite(count) || count < 1 || count > MAX_PACK_COUNT) {
+    throw new HttpsError(
+      "invalid-argument",
+      `count 는 1 이상 ${MAX_PACK_COUNT} 이하 정수여야 합니다.`
+    );
   }
 
   const packSnap = await db.collection("packs").doc(packId).get();
@@ -84,21 +95,22 @@ export const openPack = onCall<{ packId?: string }>(callable, async (request) =>
 
   let result;
   try {
-    result = runGacha(pack, allCards);
+    result = runGacha(pack, allCards, count);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.warn("openPack: gacha failed", { packId, msg });
+    logger.warn("openPack: gacha failed", { packId, count, msg });
     throw new HttpsError("failed-precondition", `가챠 실패: ${msg}`);
   }
 
-  // 트랜잭션: 재화 차감 + 인벤토리 갱신 + 뽑기 기록
-  const pullRef = db.collection("pulls").doc();
+  // 트랜잭션: 재화 차감 + 인벤토리 갱신 + 뽑기 기록 (묶음 전체 한 번에)
   const userRef = db.collection("users").doc(uid);
 
-  // 같은 카드 중복 뽑힐 수 있으므로 카운트 합산
+  // 모든 팩의 카드를 합산
   const countByCard = new Map<string, number>();
-  for (const c of result.cards) {
-    countByCard.set(c.id, (countByCard.get(c.id) ?? 0) + 1);
+  for (const p of result.packs) {
+    for (const c of p.cards) {
+      countByCard.set(c.id, (countByCard.get(c.id) ?? 0) + 1);
+    }
   }
   const inventoryRefs = Array.from(countByCard.keys()).map((cardId) => ({
     cardId,
@@ -109,6 +121,12 @@ export const openPack = onCall<{ packId?: string }>(callable, async (request) =>
     ref: db.collection("cards").doc(cardId),
   }));
 
+  // 묶음 비용 = price * count
+  const totalCost = (pack.price ?? 0) * count;
+
+  // 각 팩에 대한 pull 기록 ref 미리 생성
+  const pullRefs = result.packs.map(() => db.collection("pulls").doc());
+
   let currencyAfter: number;
   try {
     currencyAfter = await db.runTransaction(async (tx) => {
@@ -118,10 +136,10 @@ export const openPack = onCall<{ packId?: string }>(callable, async (request) =>
     const cardDocs = await Promise.all(pickedCardRefs.map(({ ref }) => tx.get(ref)));
 
     const currency = (userDoc.data()?.currency as number | undefined) ?? 0;
-    if (pack.price > 0 && currency < pack.price) {
+    if (totalCost > 0 && currency < totalCost) {
       throw new HttpsError("failed-precondition", "재화가 부족합니다.");
     }
-    const next = currency - (pack.price ?? 0);
+    const next = currency - totalCost;
 
     // 재고 검증: 트랜잭션 시작 시점의 현재 stock 이 뽑힌 개수보다 같거나 커야 함
     for (let i = 0; i < pickedCardRefs.length; i++) {
@@ -144,7 +162,7 @@ export const openPack = onCall<{ packId?: string }>(callable, async (request) =>
         currency: next,
         createdAt: FieldValue.serverTimestamp(),
       });
-    } else if (pack.price > 0) {
+    } else if (totalCost > 0) {
       tx.update(userRef, { currency: next });
     }
 
@@ -168,13 +186,18 @@ export const openPack = onCall<{ packId?: string }>(callable, async (request) =>
       tx.set(ref, data, { merge: true });
     }
 
-    tx.set(pullRef, {
-      uid,
-      packId: pack.id,
-      resultCardIds: result.cards.map((c) => c.id),
-      rarities: result.rarities,
-      createdAt: FieldValue.serverTimestamp(),
-    });
+    // 각 팩별 pull 기록
+    for (let i = 0; i < result.packs.length; i++) {
+      tx.set(pullRefs[i], {
+        uid,
+        packId: pack.id,
+        bundleSize: count,
+        bundleIndex: i,
+        resultCardIds: result.packs[i].cards.map((c) => c.id),
+        rarities: result.packs[i].rarities,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
 
     return next;
     });
@@ -188,15 +211,16 @@ export const openPack = onCall<{ packId?: string }>(callable, async (request) =>
   logger.info("pack opened", {
     uid,
     packId,
-    pullId: pullRef.id,
-    rarities: result.rarities,
+    count,
+    pullIds: pullRefs.map((r) => r.id),
   });
 
   return {
-    pullId: pullRef.id,
-    cards: result.cards,
-    rarities: result.rarities,
+    pullIds: pullRefs.map((r) => r.id),
+    packs: result.packs,
     currencyAfter,
+    totalCost,
+    count,
   };
 });
 
@@ -256,6 +280,76 @@ export const getAdminStatus = onCall(callable, async () => {
     .get();
   return { hasAdmin: !snap.empty };
 });
+
+/**
+ * 특정 팩이 현재 재고로 몇 팩이나 나올 수 있는지 추정.
+ * 각 등급의 1팩당 기대 사용량(슬롯 가중치 정규화 합)으로 stock 을 나눠
+ * 가장 작은 값(병목)을 반환. 정확한 LP 해는 아니고, 게임 UI 용 근사치.
+ */
+export const getPackAvailability = onCall<{ packId?: string }>(
+  callable,
+  async (request) => {
+    const packId = request.data.packId;
+    if (!packId || typeof packId !== "string") {
+      throw new HttpsError("invalid-argument", "packId 가 필요합니다.");
+    }
+
+    const packSnap = await db.collection("packs").doc(packId).get();
+    if (!packSnap.exists) {
+      return { approxPacksRemaining: 0, totalStock: 0 };
+    }
+    const pack = { id: packSnap.id, ...packSnap.data() } as Pack;
+
+    let allCards: Card[];
+    if (pack.cardPool && pack.cardPool.length > 0) {
+      const refs = pack.cardPool.map((id) => db.collection("cards").doc(id));
+      const docs = await db.getAll(...refs);
+      allCards = docs
+        .filter((d) => d.exists)
+        .map((d) => ({ id: d.id, ...d.data() }) as Card);
+    } else {
+      const snap = await db.collection("cards").where("isActive", "==", true).get();
+      allCards = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Card);
+    }
+
+    const eligible = allCards.filter((c) => c.isActive);
+    const stockByRarity = new Map<string, number>();
+    for (const c of eligible) {
+      const s = c.stock ?? 0;
+      if (s <= 0) continue;
+      stockByRarity.set(c.rarity, (stockByRarity.get(c.rarity) ?? 0) + s);
+    }
+    const totalStock = [...stockByRarity.values()].reduce((s, v) => s + v, 0);
+
+    // 등급별 1팩당 기대 사용량
+    const expectedPerPack = new Map<string, number>();
+    for (const slot of pack.slots ?? []) {
+      const entries = Object.entries(slot.rarityWeights ?? {}).filter(
+        ([, w]) => typeof w === "number" && (w as number) > 0
+      ) as [string, number][];
+      const total = entries.reduce((s, [, w]) => s + w, 0);
+      if (total <= 0) continue;
+      for (const [r, w] of entries) {
+        const share = w / total;
+        expectedPerPack.set(r, (expectedPerPack.get(r) ?? 0) + share);
+      }
+    }
+
+    // 병목 등급: stock / expected
+    let bottleneck = Number.POSITIVE_INFINITY;
+    for (const [r, exp] of expectedPerPack) {
+      if (exp <= 0) continue;
+      const have = stockByRarity.get(r) ?? 0;
+      const can = have / exp;
+      if (can < bottleneck) bottleneck = can;
+    }
+
+    const approxPacksRemaining =
+      Number.isFinite(bottleneck) ? Math.floor(bottleneck) : 0;
+
+    return { approxPacksRemaining, totalStock };
+  }
+);
 
 /**
  * 활성 팩 목록 — 확률/풀 정보 없이 슬림 메타데이터만 반환.

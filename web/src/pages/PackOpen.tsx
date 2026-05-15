@@ -24,10 +24,15 @@ interface PackMeta {
   price: number;
 }
 
-interface OpenPackResult {
-  pullId: string;
+interface SinglePackResult {
   cards: Card[];
   rarities: Rarity[];
+}
+interface OpenPackResult {
+  pullIds: string[];
+  packs: SinglePackResult[];
+  count: number;
+  totalCost: number;
   currencyAfter: number;
 }
 
@@ -46,6 +51,25 @@ export default function PackOpen() {
   const [revealed, setRevealed] = useState<boolean[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [exps, setExps] = useState<Expansion[]>([]);
+  const [availability, setAvailability] = useState<number | null>(null);
+
+  async function refreshAvailability() {
+    if (!packId) return;
+    try {
+      const r = await httpsCallable<{ packId: string }, { approxPacksRemaining: number }>(
+        functions,
+        "getPackAvailability"
+      )({ packId });
+      setAvailability(r.data.approxPacksRemaining);
+    } catch {
+      setAvailability(null);
+    }
+  }
+
+  useEffect(() => {
+    void refreshAvailability();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [packId]);
 
   useEffect(() => {
     if (!packId) return;
@@ -70,26 +94,28 @@ export default function PackOpen() {
     return m;
   }, [exps]);
 
-  async function open() {
+  async function open(count: number) {
     if (!packId) return;
     setErr(null);
     setStage("opening");
     try {
       const t0 = Date.now();
       const [r] = await Promise.all([
-        httpsCallable<{ packId: string }, OpenPackResult>(
+        httpsCallable<{ packId: string; count: number }, OpenPackResult>(
           functions,
           "openPack"
-        )({ packId }),
+        )({ packId, count }),
         new Promise<void>((res) => setTimeout(res, 200)),
       ]);
       const elapsed = Date.now() - t0;
       if (elapsed < MIN_OPEN_MS) {
         await new Promise((res) => setTimeout(res, MIN_OPEN_MS - elapsed));
       }
+      const totalCards = r.data.packs.reduce((s, p) => s + p.cards.length, 0);
       setResult(r.data);
-      setRevealed(new Array(r.data.cards.length).fill(false));
+      setRevealed(new Array(totalCards).fill(false));
       setStage("revealed");
+      void refreshAvailability();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e));
       setStage("idle");
@@ -103,7 +129,8 @@ export default function PackOpen() {
   }
   function revealAll() {
     if (!result) return;
-    setRevealed(new Array(result.cards.length).fill(true));
+    const total = result.packs.reduce((s, p) => s + p.cards.length, 0);
+    setRevealed(new Array(total).fill(true));
   }
   function reset() {
     setResult(null);
@@ -120,7 +147,8 @@ export default function PackOpen() {
     const anyHidden = revealed.some((v) => !v);
     if (anyHidden) {
       setResetting(true);
-      setRevealed(new Array(result.cards.length).fill(true));
+      const total = result.packs.reduce((s, p) => s + p.cards.length, 0);
+      setRevealed(new Array(total).fill(true));
       // flip 애니메이션(~0.75s) + 카드 확인 시간
       await new Promise((res) => setTimeout(res, 1100));
       setResetting(false);
@@ -130,12 +158,13 @@ export default function PackOpen() {
 
   if (!pack) return <div className="center">팩 로딩 중...</div>;
 
+  const allResultRarities = result ? result.packs.flatMap((p) => p.rarities) : [];
+  const allResultCards = result ? result.packs.flatMap((p) => p.cards) : [];
   const maxTier = result
-    ? Math.max(0, ...result.rarities.map((r) => RARITY_TIER[r]))
+    ? Math.max(0, ...allResultRarities.map((r) => RARITY_TIER[r]))
     : 0;
   const price = pack.price ?? 0;
   const free = price === 0;
-  const cantAfford = !free && balance < price;
 
   return (
     <div className={`open-root tier-${maxTier}`}>
@@ -150,20 +179,14 @@ export default function PackOpen() {
       <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap" }}>
         <div>
           <h1 className="h1" style={{ marginBottom: 4 }}>{pack.name}</h1>
-          <p className="muted" style={{ marginTop: 0 }}>{pack.cardCount}장</p>
+          <p className="muted" style={{ marginTop: 0 }}>
+            {pack.cardCount}장 · 가격 {free ? "무료" : `💎 ${formatCurrency(price)}`}
+          </p>
         </div>
         <div className="col" style={{ alignItems: "flex-end", gap: 6 }}>
           <span className="balance-pill">
             <span>💎</span>
             <b>{formatCurrency(balance)}</b>
-          </span>
-          <span className="muted" style={{ fontSize: 12 }}>
-            팩 가격 {free ? <b style={{ color: "var(--ok)" }}>무료</b> : <b style={{ color: "var(--accent)" }}>💎 {formatCurrency(price)}</b>}
-            {!free && (
-              <> · 개봉 후 <b style={{ color: cantAfford ? "var(--danger)" : "var(--text)" }}>
-                💎 {formatCurrency(balance - price)}
-              </b></>
-            )}
           </span>
         </div>
       </div>
@@ -188,19 +211,43 @@ export default function PackOpen() {
           </div>
 
           {stage === "idle" ? (
-            <div className="col" style={{ alignItems: "center", gap: 10 }}>
-              <button
-                onClick={open}
-                className="open-btn"
-                disabled={cantAfford}
-                title={cantAfford ? "캐시가 부족합니다" : undefined}
-              >
-                {free
-                  ? "팩 열기"
-                  : cantAfford
-                  ? `잔액 부족 (💎 ${formatCurrency(price - balance)} 부족)`
-                  : `팩 열기 · 💎 ${formatCurrency(price)}`}
-              </button>
+            <div className="col" style={{ alignItems: "center", gap: 12 }}>
+              <div className="row" style={{ gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                {[1, 5, 10].map((n) => {
+                  const cost = price * n;
+                  const cant = !free && balance < cost;
+                  const exceeds = availability != null && n > availability;
+                  const disabled = cant || exceeds;
+                  return (
+                    <button
+                      key={n}
+                      onClick={() => open(n)}
+                      className={n === 1 ? "open-btn" : "secondary"}
+                      disabled={disabled}
+                      title={
+                        cant
+                          ? "캐시가 부족합니다"
+                          : exceeds
+                          ? "재고가 부족합니다"
+                          : undefined
+                      }
+                      style={n === 1 ? undefined : { padding: "12px 22px", fontSize: 14, borderRadius: 999 }}
+                    >
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1.2 }}>
+                        <span style={{ fontSize: 15, fontWeight: 800 }}>{n}팩</span>
+                        <span style={{ fontSize: 11, opacity: 0.85 }}>
+                          {free ? "무료" : `💎 ${formatCurrency(cost)}`}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {availability != null && (
+                <span className="muted" style={{ fontSize: 12 }}>
+                  현재 재고로 약 <b style={{ color: availability > 0 ? "var(--text)" : "var(--danger)" }}>{availability}</b>팩 분량 남음
+                </span>
+              )}
               {err && (
                 <p style={{ color: "var(--danger)", textAlign: "center", maxWidth: 480 }}>
                   {err}
@@ -222,15 +269,22 @@ export default function PackOpen() {
       {stage === "revealed" && result && (
         <>
           {maxTier >= 3 && <div className="hit-flash" />}
+          {result.count > 1 && (
+            <div className="row" style={{ justifyContent: "center", marginTop: 8 }}>
+              <span className="balance-pill" style={{ fontSize: 13 }}>
+                {result.count}팩 결과 · 총 {allResultCards.length}장
+              </span>
+            </div>
+          )}
           <div className="reveal-wrap">
             <div className="reveal">
-              {result.cards.map((card, i) => {
-                const tier = RARITY_TIER[result.rarities[i]];
+              {allResultCards.map((card, i) => {
+                const tier = RARITY_TIER[allResultRarities[i]];
                 return (
                   <div
                     key={i}
                     className={`flip-wrap entry tier-${tier}`}
-                    style={{ animationDelay: `${i * 90}ms` }}
+                    style={{ animationDelay: `${Math.min(i, 24) * 70}ms` }}
                   >
                     <div
                       className={`flip ${revealed[i] ? "flipped" : ""}`}
@@ -239,7 +293,7 @@ export default function PackOpen() {
                       {revealed[i] && (
                         <div
                           className="aura"
-                          style={{ background: RARITY_GRADIENT[result.rarities[i]] }}
+                          style={{ background: RARITY_GRADIENT[allResultRarities[i]] }}
                         />
                       )}
                       <div
@@ -286,10 +340,10 @@ export default function PackOpen() {
                       <div className="card-meta">
                         <span
                           className="rarity-pill"
-                          style={{ background: RARITY_COLOR[result.rarities[i]] }}
-                          title={RARITY_LABEL[result.rarities[i]]}
+                          style={{ background: RARITY_COLOR[allResultRarities[i]] }}
+                          title={RARITY_LABEL[allResultRarities[i]]}
                         >
-                          {RARITY_LABEL[result.rarities[i]]}
+                          {RARITY_LABEL[allResultRarities[i]]}
                         </span>
                         <div className="card-name">{card.name}</div>
                         {(() => {
