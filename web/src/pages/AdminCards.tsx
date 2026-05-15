@@ -50,6 +50,18 @@ export default function AdminCards() {
     return m;
   }, [exps]);
 
+  const sortedCards = useMemo(() => {
+    return [...cards].sort((a, b) => {
+      const ea = a.expansionId ? expById.get(a.expansionId)?.code ?? "" : "";
+      const eb = b.expansionId ? expById.get(b.expansionId)?.code ?? "" : "";
+      if (ea !== eb) return ea.localeCompare(eb);
+      const na = a.number ?? Number.POSITIVE_INFINITY;
+      const nb = b.number ?? Number.POSITIVE_INFINITY;
+      if (na !== nb) return na - nb;
+      return a.name.localeCompare(b.name);
+    });
+  }, [cards, expById]);
+
   async function create() {
     if (!draft.name) return;
     const payload: Partial<Card> = { ...draft };
@@ -180,7 +192,7 @@ export default function AdminCards() {
             </tr>
           </thead>
           <tbody>
-            {cards.map((c) => {
+            {sortedCards.map((c) => {
               const exp = c.expansionId ? expById.get(c.expansionId) : undefined;
               const label = formatCardNumber(c, exp);
               return (
