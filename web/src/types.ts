@@ -158,6 +158,8 @@ export interface Pack {
   id: string;
   name: string;
   imageUrl?: string;
+  /** 팩 개봉 시 카드 뒷면으로 사용할 이미지. 비어 있으면 기본 그라데이션 뒷면. */
+  cardBackImageUrl?: string;
   cardCount: number;
   slots: SlotConfig[];
   cardPool: string[];

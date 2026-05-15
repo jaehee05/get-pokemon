@@ -273,6 +273,7 @@ export const listActivePacks = onCall(callable, async () => {
         id: d.id,
         name: p.name as string,
         imageUrl: (p.imageUrl as string | undefined) ?? "",
+        cardBackImageUrl: (p.cardBackImageUrl as string | undefined) ?? "",
         cardCount: p.cardCount as number,
         price: (p.price as number | undefined) ?? 0,
       };

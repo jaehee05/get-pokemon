@@ -559,6 +559,19 @@ code.mini {
     radial-gradient(circle at 50% 35%, rgba(255,255,255,0.18) 0 22%, transparent 23%),
     repeating-linear-gradient(45deg, rgba(255,255,255,0.04) 0 6px, transparent 6px 12px);
 }
+.flip .back.custom { background: #0a0d14; padding: 0; }
+.flip .back.custom .back-image {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.flip .back.custom .tap-hint {
+  position: absolute;
+  bottom: 10px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+}
 .flip .tap-hint {
   position: relative;
   font-weight: 800;

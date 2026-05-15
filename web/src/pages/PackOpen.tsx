@@ -19,6 +19,7 @@ interface PackMeta {
   id: string;
   name: string;
   imageUrl: string;
+  cardBackImageUrl: string;
   cardCount: number;
   price: number;
 }
@@ -222,9 +223,24 @@ export default function PackOpen() {
                           style={{ background: RARITY_GRADIENT[result.rarities[i]] }}
                         />
                       )}
-                      <div className="face back">
-                        <div className="back-pattern" />
-                        <span className="tap-hint">탭</span>
+                      <div
+                        className={`face back${pack.cardBackImageUrl ? " custom" : ""}`}
+                      >
+                        {pack.cardBackImageUrl ? (
+                          <>
+                            <img
+                              src={pack.cardBackImageUrl}
+                              alt=""
+                              className="back-image"
+                            />
+                            <span className="tap-hint">탭</span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="back-pattern" />
+                            <span className="tap-hint">탭</span>
+                          </>
+                        )}
                       </div>
                       <div className="face front">
                         {card.imageUrl ? (

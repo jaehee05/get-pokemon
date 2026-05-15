@@ -54,6 +54,8 @@ export interface Pack {
   id: string;
   name: string;
   imageUrl?: string;
+  /** 개봉 시 카드 뒷면 이미지. */
+  cardBackImageUrl?: string;
   cardCount: number;
   slots: SlotConfig[];
   cardPool: string[];

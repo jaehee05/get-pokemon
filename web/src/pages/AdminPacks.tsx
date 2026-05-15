@@ -159,6 +159,7 @@ function PackEditor({
 }) {
   const [name, setName] = useState(pack.name);
   const [imageUrl, setImageUrl] = useState(pack.imageUrl ?? "");
+  const [cardBackImageUrl, setCardBackImageUrl] = useState(pack.cardBackImageUrl ?? "");
   const [cardCount, setCardCount] = useState(pack.cardCount);
   const [price, setPrice] = useState(pack.price ?? 0);
   const [isActive, setIsActive] = useState(pack.isActive);
@@ -250,7 +251,7 @@ function PackEditor({
         <div className="row">
           <label>이름 <input value={name} onChange={(e) => setName(e.target.value)} /></label>
           <label>
-            이미지 URL
+            팩 이미지 URL
             <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} style={{ minWidth: 240 }} />
           </label>
           <label>
@@ -282,6 +283,29 @@ function PackEditor({
               onChange={(e) => setIsActive(e.target.checked)}
             />
           </label>
+        </div>
+        <div className="row" style={{ marginTop: 10, alignItems: "flex-end" }}>
+          <label style={{ flex: 1 }}>
+            카드 뒷면 이미지 URL
+            <input
+              value={cardBackImageUrl}
+              onChange={(e) => setCardBackImageUrl(e.target.value)}
+              placeholder="개봉할 때 모든 카드의 뒷면으로 표시됩니다. 비우면 기본 디자인."
+            />
+          </label>
+          {cardBackImageUrl && (
+            <img
+              src={cardBackImageUrl}
+              alt="뒷면 미리보기"
+              style={{
+                width: 50,
+                height: 70,
+                objectFit: "cover",
+                borderRadius: 6,
+                border: "1px solid var(--border-strong)",
+              }}
+            />
+          )}
         </div>
 
         <h2 className="h2">슬롯별 등급 가중치</h2>
@@ -352,6 +376,7 @@ function PackEditor({
               onSave({
                 name,
                 imageUrl,
+                cardBackImageUrl,
                 cardCount,
                 price,
                 isActive,
