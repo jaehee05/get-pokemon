@@ -19,7 +19,7 @@ import {
 const blank: Omit<Card, "id"> = {
   name: "",
   imageUrl: "",
-  rarity: "common",
+  rarity: "C",
   weight: 1,
   isActive: true,
 };

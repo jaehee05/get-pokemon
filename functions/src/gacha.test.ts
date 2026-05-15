@@ -3,7 +3,6 @@ import { openPack, weightedPickKey, weightedPickItem } from "./gacha";
 import { Card, Pack } from "./types";
 
 function seededRng(seed: number) {
-  // mulberry32
   let s = seed >>> 0;
   return () => {
     s = (s + 0x6d2b79f5) >>> 0;
@@ -50,14 +49,17 @@ describe("weightedPickItem", () => {
   });
 });
 
-describe("openPack — TCG Pocket 스타일 (5장, 5번째 슬롯이 Hit)", () => {
+describe("openPack — TCG Pocket 스타일 (5장, 5번째가 Hit)", () => {
   const cards: Card[] = [
-    { id: "c1", name: "Magikarp", imageUrl: "", rarity: "common", weight: 1, isActive: true },
-    { id: "c2", name: "Pidgey", imageUrl: "", rarity: "common", weight: 1, isActive: true },
-    { id: "u1", name: "Bulbasaur", imageUrl: "", rarity: "uncommon", weight: 1, isActive: true },
-    { id: "r1", name: "Charmeleon", imageUrl: "", rarity: "rare", weight: 1, isActive: true },
-    { id: "sr1", name: "Charizard", imageUrl: "", rarity: "super_rare", weight: 1, isActive: true },
-    { id: "scr1", name: "Charizard ex", imageUrl: "", rarity: "secret_rare", weight: 1, isActive: true },
+    { id: "c1", name: "Magikarp", imageUrl: "", rarity: "C", weight: 1, isActive: true },
+    { id: "c2", name: "Pidgey", imageUrl: "", rarity: "C", weight: 1, isActive: true },
+    { id: "u1", name: "Bulbasaur", imageUrl: "", rarity: "U", weight: 1, isActive: true },
+    { id: "r1", name: "Charmeleon", imageUrl: "", rarity: "R", weight: 1, isActive: true },
+    { id: "rr1", name: "Wartortle ex", imageUrl: "", rarity: "RR", weight: 1, isActive: true },
+    { id: "ar1", name: "Charizard ART", imageUrl: "", rarity: "AR", weight: 1, isActive: true },
+    { id: "sr1", name: "Charizard SR", imageUrl: "", rarity: "SR", weight: 1, isActive: true },
+    { id: "sar1", name: "Charizard SAR", imageUrl: "", rarity: "SAR", weight: 1, isActive: true },
+    { id: "mur1", name: "Mew MUR", imageUrl: "", rarity: "MUR", weight: 1, isActive: true },
   ];
 
   const pack: Pack = {
@@ -68,11 +70,20 @@ describe("openPack — TCG Pocket 스타일 (5장, 5번째 슬롯이 Hit)", () =
     price: 0,
     isActive: true,
     slots: [
-      { rarityWeights: { common: 100 } },
-      { rarityWeights: { common: 100 } },
-      { rarityWeights: { common: 100 } },
-      { rarityWeights: { uncommon: 90, rare: 10 } },
-      { rarityWeights: { rare: 70, super_rare: 25, secret_rare: 5 } },
+      { rarityWeights: { C: 100 } },
+      { rarityWeights: { C: 100 } },
+      { rarityWeights: { C: 100 } },
+      { rarityWeights: { U: 85, R: 15 } },
+      {
+        rarityWeights: {
+          R: 50,
+          RR: 25,
+          AR: 12,
+          SR: 8,
+          SAR: 4,
+          MUR: 1,
+        },
+      },
     ],
   };
 
@@ -85,41 +96,46 @@ describe("openPack — TCG Pocket 스타일 (5장, 5번째 슬롯이 Hit)", () =
     }
   });
 
-  it("slots 0-2 are always common", () => {
+  it("slots 0-2 are always C", () => {
     const rng = seededRng(11);
     for (let i = 0; i < 200; i++) {
       const res = openPack(pack, cards, rng);
-      expect(res.rarities[0]).toBe("common");
-      expect(res.rarities[1]).toBe("common");
-      expect(res.rarities[2]).toBe("common");
+      expect(res.rarities[0]).toBe("C");
+      expect(res.rarities[1]).toBe("C");
+      expect(res.rarities[2]).toBe("C");
     }
   });
 
   it("slot 4 (Hit) follows configured rarity distribution", () => {
     const rng = seededRng(42);
-    const counts = { rare: 0, super_rare: 0, secret_rare: 0 };
-    const N = 20000;
+    const counts: Record<string, number> = {
+      R: 0, RR: 0, AR: 0, SR: 0, SAR: 0, MUR: 0,
+    };
+    const N = 40000;
     for (let i = 0; i < N; i++) {
       const res = openPack(pack, cards, rng);
-      counts[res.rarities[4] as keyof typeof counts]++;
+      counts[res.rarities[4]]++;
     }
-    expect(counts.rare / N).toBeGreaterThan(0.65);
-    expect(counts.rare / N).toBeLessThan(0.75);
-    expect(counts.super_rare / N).toBeGreaterThan(0.22);
-    expect(counts.super_rare / N).toBeLessThan(0.28);
-    expect(counts.secret_rare / N).toBeGreaterThan(0.035);
-    expect(counts.secret_rare / N).toBeLessThan(0.065);
+    // 50, 25, 12, 8, 4, 1 → total 100
+    expect(counts.R / N).toBeGreaterThan(0.46);
+    expect(counts.R / N).toBeLessThan(0.54);
+    expect(counts.RR / N).toBeGreaterThan(0.22);
+    expect(counts.RR / N).toBeLessThan(0.28);
+    expect(counts.AR / N).toBeGreaterThan(0.10);
+    expect(counts.AR / N).toBeLessThan(0.14);
+    expect(counts.MUR / N).toBeGreaterThan(0.005);
+    expect(counts.MUR / N).toBeLessThan(0.020);
   });
 
   it("respects per-card weight within a rarity", () => {
-    const weighted = [
-      ...cards.filter((c) => c.rarity !== "common"),
-      { id: "cA", name: "A", imageUrl: "", rarity: "common" as const, weight: 9, isActive: true },
-      { id: "cB", name: "B", imageUrl: "", rarity: "common" as const, weight: 1, isActive: true },
+    const weighted: Card[] = [
+      ...cards.filter((c) => c.rarity !== "C"),
+      { id: "cA", name: "A", imageUrl: "", rarity: "C", weight: 9, isActive: true },
+      { id: "cB", name: "B", imageUrl: "", rarity: "C", weight: 1, isActive: true },
     ];
     const onlyCommon: Pack = {
       ...pack,
-      slots: [{ rarityWeights: { common: 100 } }],
+      slots: [{ rarityWeights: { C: 100 } }],
       cardCount: 1,
       cardPool: ["cA", "cB"],
     };
@@ -140,13 +156,13 @@ describe("openPack — TCG Pocket 스타일 (5장, 5번째 슬롯이 Hit)", () =
   });
 
   it("throws when a rarity is rolled but pool has none", () => {
-    const noSecret = cards.filter((c) => c.rarity !== "secret_rare");
-    const alwaysSecret: Pack = {
+    const noMUR = cards.filter((c) => c.rarity !== "MUR");
+    const alwaysMUR: Pack = {
       ...pack,
       cardCount: 1,
-      slots: [{ rarityWeights: { secret_rare: 1 } }],
-      cardPool: noSecret.map((c) => c.id),
+      slots: [{ rarityWeights: { MUR: 1 } }],
+      cardPool: noMUR.map((c) => c.id),
     };
-    expect(() => openPack(alwaysSecret, noSecret, seededRng(3))).toThrow();
+    expect(() => openPack(alwaysMUR, noMUR, seededRng(3))).toThrow();
   });
 });

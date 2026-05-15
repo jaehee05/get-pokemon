@@ -31,12 +31,13 @@ service cloud.firestore {
     // 유저 프로필
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin();
+      // 클라이언트 create: displayName/email/createdAt 만, currency 는 0 이거나 없어야 함
       allow create: if isOwner(uid)
-        && request.resource.data.keys().hasOnly(['displayName', 'currency', 'createdAt'])
-        && request.resource.data.currency is number;
-      // currency/isAdmin 변경은 functions에서만 (admin SDK는 rules 우회)
+        && request.resource.data.keys().hasOnly(['displayName', 'email', 'currency', 'createdAt'])
+        && (!('currency' in request.resource.data) || request.resource.data.currency == 0);
+      // currency / isAdmin 변경은 functions(admin SDK)에서만. 클라이언트는 displayName / email 만 갱신 가능.
       allow update: if isOwner(uid)
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['displayName']);
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['displayName', 'email']);
       allow delete: if false;
     }
 

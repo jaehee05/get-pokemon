@@ -12,6 +12,7 @@ import {
   ALL_RARITIES,
   Card,
   Pack,
+  RARITY_CODE,
   RARITY_COLOR,
   RARITY_LABEL,
   Rarity,
@@ -19,13 +20,15 @@ import {
 } from "../types";
 
 function defaultSlots(n: number): SlotConfig[] {
-  // TCG Pocket 풍 기본값: 앞 슬롯은 common, 마지막 1~2개가 Hit
+  // TCG Pocket 풍 기본값: 앞 슬롯은 C, 마지막 1~2개가 Hit
   return Array.from({ length: n }, (_, i) => {
-    if (i < Math.max(0, n - 2)) return { rarityWeights: { common: 100 } };
-    if (i === n - 2)
-      return { rarityWeights: { uncommon: 90, rare: 10 } };
+    if (i < Math.max(0, n - 2)) return { rarityWeights: { C: 100 } };
+    if (i === n - 2) return { rarityWeights: { U: 85, R: 15 } };
     return {
-      rarityWeights: { rare: 70, super_rare: 25, secret_rare: 5 },
+      rarityWeights: {
+        R: 40, RR: 25, SR: 12, AR: 10, SAR: 6,
+        UR: 3, ACE: 2, S: 1, SSR: 0.5, BWR: 0.3, MUR: 0.15, MA: 0.05,
+      },
     };
   });
 }
@@ -228,28 +231,36 @@ function PackEditor({
           (예: 5번째 슬롯 SR 25, SCR 5 → 슬롯 안에서 SR 25/30 ≈ 83.3%, SCR 5/30 ≈ 16.7%)
         </p>
 
-        <div className="slot-config">
-          <div className="label">슬롯</div>
-          {ALL_RARITIES.map((r) => (
-            <div key={r} className="label" style={{ color: RARITY_COLOR[r] }}>
-              {RARITY_LABEL[r]}
+        <div className="slot-grid-wrap">
+          <div className="slot-config">
+            <div className="label">슬롯</div>
+            {ALL_RARITIES.map((r) => (
+              <div
+                key={r}
+                className="label"
+                style={{ color: RARITY_COLOR[r], fontWeight: 700, textAlign: "center" }}
+                title={RARITY_LABEL[r]}
+              >
+                {RARITY_CODE[r]}
+              </div>
+            ))}
+          </div>
+          {slots.map((s, i) => (
+            <div key={i} className="slot-config">
+              <div className="label">#{i + 1}{previews[i].total === 0 ? " ⚠️" : ""}</div>
+              {ALL_RARITIES.map((r) => (
+                <input
+                  key={r}
+                  type="number"
+                  min={0}
+                  step={0.05}
+                  value={s.rarityWeights[r] ?? 0}
+                  onChange={(e) => setSlotWeight(i, r, Number(e.target.value))}
+                />
+              ))}
             </div>
           ))}
         </div>
-        {slots.map((s, i) => (
-          <div key={i} className="slot-config">
-            <div className="label">#{i + 1}{previews[i].total === 0 ? " ⚠️" : ""}</div>
-            {ALL_RARITIES.map((r) => (
-              <input
-                key={r}
-                type="number"
-                min={0}
-                value={s.rarityWeights[r] ?? 0}
-                onChange={(e) => setSlotWeight(i, r, Number(e.target.value))}
-              />
-            ))}
-          </div>
-        ))}
 
         <h2 className="h2">카드 풀</h2>
         <p className="muted" style={{ fontSize: 12 }}>

@@ -8,6 +8,7 @@ import {
   signOut,
   updateProfile,
 } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
 import {
   ReactNode,
   createContext,
@@ -15,7 +16,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import { auth, googleProvider } from "./firebase";
+import { auth, db, googleProvider } from "./firebase";
 
 interface AuthState {
   user: User | null;
@@ -46,6 +47,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (u) {
         const token = await u.getIdTokenResult();
         setIsAdmin(token.claims.admin === true);
+        // 프로필 동기화 (관리자 화면에서 유저 목록 표시용)
+        try {
+          await setDoc(
+            doc(db, "users", u.uid),
+            {
+              displayName: u.displayName ?? "",
+              email: u.email ?? "",
+            },
+            { merge: true }
+          );
+        } catch {
+          // 룰 위반/오프라인 등은 무시 — 로그인 자체에는 영향 없음
+        }
       } else {
         setIsAdmin(false);
       }
