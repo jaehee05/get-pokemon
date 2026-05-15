@@ -79,15 +79,16 @@ export function openPack(
   const poolIds =
     pack.cardPool.length > 0 ? new Set(pack.cardPool) : null;
   const eligible = allCards.filter(
-    (c) => c.isActive && (poolIds === null || poolIds.has(c.id))
+    (c) =>
+      c.isActive &&
+      (c.stock ?? 0) > 0 &&
+      (poolIds === null || poolIds.has(c.id))
   );
 
-  const byRarity = new Map<Rarity, Card[]>();
-  for (const c of eligible) {
-    const arr = byRarity.get(c.rarity) ?? [];
-    arr.push(c);
-    byRarity.set(c.rarity, arr);
-  }
+  // 같은 팩 안에서 동일 카드의 재고가 1인데 두 슬롯에서 뽑히는 걸 방지하기 위해
+  // 로컬 stock 카운터를 두고 뽑힐 때마다 1 차감 → 후속 슬롯은 잔여만 보이게.
+  const localStock = new Map<string, number>();
+  for (const c of eligible) localStock.set(c.id, c.stock ?? 0);
 
   const cards: Card[] = [];
   const rarities: Rarity[] = [];
@@ -95,13 +96,16 @@ export function openPack(
   for (let i = 0; i < pack.slots.length; i++) {
     const slot = pack.slots[i];
     const rarity = weightedPickKey<Rarity>(slot.rarityWeights, rng);
-    const candidates = byRarity.get(rarity) ?? [];
+    const candidates = eligible.filter(
+      (c) => c.rarity === rarity && (localStock.get(c.id) ?? 0) > 0
+    );
     if (candidates.length === 0) {
       throw new Error(
-        `pack ${pack.id} slot ${i}: rarity "${rarity}" 뽑혔지만 풀에 해당 등급 카드 없음`
+        `pack ${pack.id} slot ${i}: 등급 "${rarity}" 뽑혔지만 재고 가능한 카드 없음`
       );
     }
     const card = weightedPickItem(candidates, (c) => c.weight, rng);
+    localStock.set(card.id, (localStock.get(card.id) ?? 0) - 1);
     cards.push(card);
     rarities.push(rarity);
   }

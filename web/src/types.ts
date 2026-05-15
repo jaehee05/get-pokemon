@@ -130,10 +130,10 @@ export interface Card {
   rarity: Rarity;
   weight: number;
   isActive: boolean;
-  /** 소속 확장팩 doc id. 없을 수도 있음. */
   expansionId?: string;
-  /** 확장팩 내 번호 (예: 1, 84, 100). 상한 없음. */
   number?: number;
+  /** 남은 재고. 0 이거나 미정의면 가챠 후보에서 제외. 뽑히면 1 차감. */
+  stock?: number;
 }
 
 /** "M4 001/083" 형태로 포맷. expansion 없으면 빈 문자열. */

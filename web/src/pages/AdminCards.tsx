@@ -26,6 +26,7 @@ const blank: Omit<Card, "id"> = {
   isActive: true,
   expansionId: "",
   number: undefined,
+  stock: 0,
 };
 
 export default function AdminCards() {
@@ -145,6 +146,18 @@ export default function AdminCards() {
             />
           </label>
           <label>
+            재고
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={draft.stock ?? 0}
+              onChange={(e) => setDraft({ ...draft, stock: Number(e.target.value) })}
+              style={{ width: 90 }}
+              title="0 이면 가챠 후보에서 제외"
+            />
+          </label>
+          <label>
             활성
             <input
               type="checkbox"
@@ -166,6 +179,7 @@ export default function AdminCards() {
               <th>확장팩 / 번호</th>
               <th>등급</th>
               <th>가중치</th>
+              <th>재고</th>
               <th>활성</th>
               <th></th>
             </tr>
@@ -242,6 +256,25 @@ export default function AdminCards() {
                       onChange={(e) => patch(c.id, "weight", Number(e.target.value))}
                       style={{ width: 70 }}
                     />
+                  </td>
+                  <td>
+                    <div className="row" style={{ gap: 4 }}>
+                      <input
+                        type="number"
+                        min={0}
+                        value={c.stock ?? 0}
+                        onChange={(e) => patch(c.id, "stock", Number(e.target.value))}
+                        style={{ width: 70 }}
+                        title="0 이면 가챠 후보에서 제외"
+                      />
+                      <button
+                        className="secondary"
+                        onClick={() => patch(c.id, "stock", (c.stock ?? 0) + 10)}
+                        style={{ fontSize: 11, padding: "4px 6px" }}
+                      >
+                        +10
+                      </button>
+                    </div>
                   </td>
                   <td>
                     <input

@@ -51,15 +51,15 @@ describe("weightedPickItem", () => {
 
 describe("openPack — TCG Pocket 스타일 (5장, 5번째가 Hit)", () => {
   const cards: Card[] = [
-    { id: "c1", name: "Magikarp", imageUrl: "", rarity: "C", weight: 1, isActive: true },
-    { id: "c2", name: "Pidgey", imageUrl: "", rarity: "C", weight: 1, isActive: true },
-    { id: "u1", name: "Bulbasaur", imageUrl: "", rarity: "U", weight: 1, isActive: true },
-    { id: "r1", name: "Charmeleon", imageUrl: "", rarity: "R", weight: 1, isActive: true },
-    { id: "rr1", name: "Wartortle ex", imageUrl: "", rarity: "RR", weight: 1, isActive: true },
-    { id: "ar1", name: "Charizard ART", imageUrl: "", rarity: "AR", weight: 1, isActive: true },
-    { id: "sr1", name: "Charizard SR", imageUrl: "", rarity: "SR", weight: 1, isActive: true },
-    { id: "sar1", name: "Charizard SAR", imageUrl: "", rarity: "SAR", weight: 1, isActive: true },
-    { id: "mur1", name: "Mew MUR", imageUrl: "", rarity: "MUR", weight: 1, isActive: true },
+    { id: "c1", name: "Magikarp", imageUrl: "", rarity: "C", weight: 1, isActive: true, stock: 1e9 },
+    { id: "c2", name: "Pidgey", imageUrl: "", rarity: "C", weight: 1, isActive: true, stock: 1e9 },
+    { id: "u1", name: "Bulbasaur", imageUrl: "", rarity: "U", weight: 1, isActive: true, stock: 1e9 },
+    { id: "r1", name: "Charmeleon", imageUrl: "", rarity: "R", weight: 1, isActive: true, stock: 1e9 },
+    { id: "rr1", name: "Wartortle ex", imageUrl: "", rarity: "RR", weight: 1, isActive: true, stock: 1e9 },
+    { id: "ar1", name: "Charizard ART", imageUrl: "", rarity: "AR", weight: 1, isActive: true, stock: 1e9 },
+    { id: "sr1", name: "Charizard SR", imageUrl: "", rarity: "SR", weight: 1, isActive: true, stock: 1e9 },
+    { id: "sar1", name: "Charizard SAR", imageUrl: "", rarity: "SAR", weight: 1, isActive: true, stock: 1e9 },
+    { id: "mur1", name: "Mew MUR", imageUrl: "", rarity: "MUR", weight: 1, isActive: true, stock: 1e9 },
   ];
 
   const pack: Pack = {
@@ -130,8 +130,8 @@ describe("openPack — TCG Pocket 스타일 (5장, 5번째가 Hit)", () => {
   it("respects per-card weight within a rarity", () => {
     const weighted: Card[] = [
       ...cards.filter((c) => c.rarity !== "C"),
-      { id: "cA", name: "A", imageUrl: "", rarity: "C", weight: 9, isActive: true },
-      { id: "cB", name: "B", imageUrl: "", rarity: "C", weight: 1, isActive: true },
+      { id: "cA", name: "A", imageUrl: "", rarity: "C", weight: 9, isActive: true, stock: 1e9 },
+      { id: "cB", name: "B", imageUrl: "", rarity: "C", weight: 1, isActive: true, stock: 1e9 },
     ];
     const onlyCommon: Pack = {
       ...pack,
@@ -164,5 +164,65 @@ describe("openPack — TCG Pocket 스타일 (5장, 5번째가 Hit)", () => {
       cardPool: noMUR.map((c) => c.id),
     };
     expect(() => openPack(alwaysMUR, noMUR, seededRng(3))).toThrow();
+  });
+
+  it("excludes cards with stock 0 / undefined", () => {
+    const onlyOOSCommon: Card[] = [
+      { id: "x", name: "X", imageUrl: "", rarity: "C", weight: 1, isActive: true, stock: 0 },
+      { id: "y", name: "Y", imageUrl: "", rarity: "C", weight: 1, isActive: true /* stock undefined */ },
+      { id: "z", name: "Z", imageUrl: "", rarity: "C", weight: 1, isActive: true, stock: 5 },
+    ];
+    const onlyC: Pack = {
+      ...pack,
+      cardCount: 1,
+      slots: [{ rarityWeights: { C: 1 } }],
+      cardPool: ["x", "y", "z"],
+    };
+    const rng = seededRng(8);
+    for (let i = 0; i < 200; i++) {
+      const res = openPack(onlyC, onlyOOSCommon, rng);
+      expect(res.cards[0].id).toBe("z");
+    }
+  });
+
+  it("does not draw the same single-stock card twice in one pack", () => {
+    const oneEach: Card[] = [
+      { id: "c-1", name: "C1", imageUrl: "", rarity: "C", weight: 1, isActive: true, stock: 1 },
+      { id: "c-2", name: "C2", imageUrl: "", rarity: "C", weight: 1, isActive: true, stock: 1 },
+      { id: "c-3", name: "C3", imageUrl: "", rarity: "C", weight: 1, isActive: true, stock: 1 },
+    ];
+    const threeCommon: Pack = {
+      ...pack,
+      cardCount: 3,
+      slots: [
+        { rarityWeights: { C: 1 } },
+        { rarityWeights: { C: 1 } },
+        { rarityWeights: { C: 1 } },
+      ],
+      cardPool: oneEach.map((c) => c.id),
+    };
+    const rng = seededRng(13);
+    for (let i = 0; i < 50; i++) {
+      const res = openPack(threeCommon, oneEach, rng);
+      const ids = res.cards.map((c) => c.id);
+      // 모두 다른 카드여야 함 (각 1개씩만 재고)
+      expect(new Set(ids).size).toBe(3);
+    }
+  });
+
+  it("throws when local stock is depleted mid-pack", () => {
+    const single: Card[] = [
+      { id: "only", name: "Only C", imageUrl: "", rarity: "C", weight: 1, isActive: true, stock: 1 },
+    ];
+    const twoCommon: Pack = {
+      ...pack,
+      cardCount: 2,
+      slots: [
+        { rarityWeights: { C: 1 } },
+        { rarityWeights: { C: 1 } },
+      ],
+      cardPool: ["only"],
+    };
+    expect(() => openPack(twoCommon, single, seededRng(21))).toThrow();
   });
 });

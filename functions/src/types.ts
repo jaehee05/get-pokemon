@@ -40,6 +40,8 @@ export interface Card {
   isActive: boolean;
   expansionId?: string;
   number?: number;
+  /** 남은 재고. 미정의/0 이면 가챠 후보에서 제외. 뽑힐 때마다 1씩 차감. */
+  stock?: number;
 }
 
 export type RarityWeights = Partial<Record<Rarity, number>>;

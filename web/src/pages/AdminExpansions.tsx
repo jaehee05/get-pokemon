@@ -246,6 +246,7 @@ function BulkImport({ exps }: { exps: Expansion[] }) {
               imageUrl: "",
               weight: 1,
               isActive: true,
+              stock: 0, // 카탈로그 등록 직후엔 재고 없음 → 관리자가 별도로 재고 설정
             });
             created++;
           }

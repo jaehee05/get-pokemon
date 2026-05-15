@@ -80,17 +80,36 @@ export const openPack = onCall<{ packId?: string }>(callable, async (request) =>
     cardId,
     ref: userRef.collection("inventory").doc(cardId),
   }));
+  const pickedCardRefs = Array.from(countByCard.keys()).map((cardId) => ({
+    cardId,
+    ref: db.collection("cards").doc(cardId),
+  }));
 
   const currencyAfter = await db.runTransaction(async (tx) => {
     // === reads first ===
     const userDoc = await tx.get(userRef);
     const invDocs = await Promise.all(inventoryRefs.map(({ ref }) => tx.get(ref)));
+    const cardDocs = await Promise.all(pickedCardRefs.map(({ ref }) => tx.get(ref)));
 
     const currency = (userDoc.data()?.currency as number | undefined) ?? 0;
     if (pack.price > 0 && currency < pack.price) {
       throw new HttpsError("failed-precondition", "재화가 부족합니다.");
     }
     const next = currency - (pack.price ?? 0);
+
+    // 재고 검증: 트랜잭션 시작 시점의 현재 stock 이 뽑힌 개수보다 같거나 커야 함
+    for (let i = 0; i < pickedCardRefs.length; i++) {
+      const { cardId } = pickedCardRefs[i];
+      const want = countByCard.get(cardId)!;
+      const haveData = cardDocs[i].data();
+      const have = ((haveData?.stock as number | undefined) ?? 0);
+      if (!cardDocs[i].exists || have < want) {
+        throw new HttpsError(
+          "failed-precondition",
+          `재고 부족: card ${cardId} (필요 ${want}, 재고 ${have})`
+        );
+      }
+    }
 
     // === writes ===
     if (!userDoc.exists) {
@@ -101,6 +120,12 @@ export const openPack = onCall<{ packId?: string }>(callable, async (request) =>
       });
     } else if (pack.price > 0) {
       tx.update(userRef, { currency: next });
+    }
+
+    // 카드 재고 차감
+    for (const { cardId, ref } of pickedCardRefs) {
+      const count = countByCard.get(cardId)!;
+      tx.update(ref, { stock: FieldValue.increment(-count) });
     }
 
     for (let i = 0; i < inventoryRefs.length; i++) {
