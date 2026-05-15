@@ -10,8 +10,10 @@ initializeApp();
 setGlobalOptions({ region: "asia-northeast3", maxInstances: 10 });
 
 // 모든 callable 에 동일하게 적용할 옵션. cors: true 로 모든 origin 허용
-// (auth 는 함수 내부에서 검증).
-const callable: CallableOptions = { cors: true };
+// (auth 는 함수 내부에서 검증). invoker: 'public' 은 Cloud Run IAM 에
+// allUsers/run.invoker 를 명시적으로 부여 — 첫 배포 때 IAM 전파 실패로
+// openPack 만 403 이 떨어지는 케이스를 영구 차단.
+const callable: CallableOptions = { cors: true, invoker: "public" };
 
 const db = getFirestore();
 const auth = getAuth();
