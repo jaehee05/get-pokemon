@@ -112,6 +112,17 @@ export const RARITY_TIER: Record<Rarity, 0 | 1 | 2 | 3 | 4> = {
   MA: 4,
 };
 
+export interface Expansion {
+  id: string;
+  /** 짧은 코드 (예: "M4", "MR"). 카드에 함께 표시됨. */
+  code: string;
+  /** 풀 네임 (예: "Mega Evolution Vol.4"). 비워도 됨. */
+  name: string;
+  /** 기본 카드 수 — 표시상 "/083" 의 분모. AR 등 특수 카드 번호가 이걸 넘겨도 OK. */
+  baseCardCount: number;
+  isActive: boolean;
+}
+
 export interface Card {
   id: string;
   name: string;
@@ -119,6 +130,21 @@ export interface Card {
   rarity: Rarity;
   weight: number;
   isActive: boolean;
+  /** 소속 확장팩 doc id. 없을 수도 있음. */
+  expansionId?: string;
+  /** 확장팩 내 번호 (예: 1, 84, 100). 상한 없음. */
+  number?: number;
+}
+
+/** "M4 001/083" 형태로 포맷. expansion 없으면 빈 문자열. */
+export function formatCardNumber(
+  card: Pick<Card, "expansionId" | "number">,
+  expansion?: Pick<Expansion, "code" | "baseCardCount"> | null
+): string {
+  if (!expansion || card.number == null) return "";
+  const n = String(card.number).padStart(3, "0");
+  const total = String(expansion.baseCardCount).padStart(3, "0");
+  return `${expansion.code} ${n}/${total}`;
 }
 
 export type RarityWeights = Partial<Record<Rarity, number>>;

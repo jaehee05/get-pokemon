@@ -23,6 +23,14 @@ export const ALL_RARITIES: Rarity[] = [
   "UR", "ACE", "S", "SSR", "BWR", "MUR", "MA",
 ];
 
+export interface Expansion {
+  id: string;
+  code: string;
+  name: string;
+  baseCardCount: number;
+  isActive: boolean;
+}
+
 export interface Card {
   id: string;
   name: string;
@@ -30,6 +38,8 @@ export interface Card {
   rarity: Rarity;
   weight: number;
   isActive: boolean;
+  expansionId?: string;
+  number?: number;
 }
 
 export type RarityWeights = Partial<Record<Rarity, number>>;

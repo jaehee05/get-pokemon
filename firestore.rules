@@ -21,6 +21,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // 확장팩: 누구나 읽기 (카드에 "M4 001/083" 표시 위해), 관리자만 쓰기
+    match /expansions/{expansionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // 팩 정의: 확률 가중치(slots/cardPool)를 숨기기 위해 client read 차단.
     // 일반 사용자는 callable `listActivePacks` 로 슬림 메타데이터만 받는다.
     match /packs/{packId} {

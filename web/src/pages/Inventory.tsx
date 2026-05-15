@@ -1,8 +1,14 @@
 import { collection, doc, getDoc, onSnapshot } from "firebase/firestore";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth";
 import { db } from "../firebase";
-import { Card, RARITY_COLOR, RARITY_LABEL } from "../types";
+import {
+  Card,
+  Expansion,
+  RARITY_COLOR,
+  RARITY_LABEL,
+  formatCardNumber,
+} from "../types";
 
 interface InvRow {
   cardId: string;
@@ -13,6 +19,13 @@ interface InvRow {
 export default function Inventory() {
   const { user } = useAuth();
   const [rows, setRows] = useState<InvRow[]>([]);
+  const [exps, setExps] = useState<Expansion[]>([]);
+
+  useEffect(() => {
+    return onSnapshot(collection(db, "expansions"), (s) =>
+      setExps(s.docs.map((d) => ({ id: d.id, ...d.data() }) as Expansion))
+    );
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -22,7 +35,6 @@ export default function Inventory() {
         cardId: d.id,
         count: (d.data().count as number) ?? 0,
       }));
-      // 카드 정보 채워넣기 (간단히 개별 fetch — 카드 수 많아지면 캐시/일괄로 개선)
       const filled = await Promise.all(
         base.map(async (r) => {
           const c = await getDoc(doc(db, "cards", r.cardId));
@@ -33,6 +45,12 @@ export default function Inventory() {
     });
   }, [user]);
 
+  const expById = useMemo(() => {
+    const m = new Map<string, Expansion>();
+    for (const e of exps) m.set(e.id, e);
+    return m;
+  }, [exps]);
+
   const total = rows.reduce((s, r) => s + r.count, 0);
 
   return (
@@ -42,11 +60,17 @@ export default function Inventory() {
         보유 종류 {rows.length} · 총 {total}장
       </p>
       {rows.length === 0 ? (
-        <p className="muted">아직 카드가 없습니다. 팩을 열어보세요.</p>
+        <div className="empty">
+          <div className="icon">🃏</div>
+          아직 카드가 없습니다. 팩을 열어보세요.
+        </div>
       ) : (
         <div className="grid cards">
-          {rows.map((r) =>
-            r.card ? (
+          {rows.map((r) => {
+            if (!r.card) return null;
+            const exp = r.card.expansionId ? expById.get(r.card.expansionId) : undefined;
+            const label = formatCardNumber(r.card, exp);
+            return (
               <div key={r.cardId} className="card">
                 <div className="thumb">
                   {r.card.imageUrl ? (
@@ -59,15 +83,18 @@ export default function Inventory() {
                   <div className="name">{r.card.name}</div>
                   <div className="muted">×{r.count}</div>
                 </div>
-                <span
-                  className="rarity-pill"
-                  style={{ background: RARITY_COLOR[r.card.rarity] }}
-                >
-                  {RARITY_LABEL[r.card.rarity]}
-                </span>
+                <div className="row" style={{ justifyContent: "space-between", gap: 6 }}>
+                  <span
+                    className="rarity-pill"
+                    style={{ background: RARITY_COLOR[r.card.rarity] }}
+                  >
+                    {RARITY_LABEL[r.card.rarity]}
+                  </span>
+                  {label && <code className="mini">{label}</code>}
+                </div>
               </div>
-            ) : null
-          )}
+            );
+          })}
         </div>
       )}
     </div>

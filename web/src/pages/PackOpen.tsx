@@ -1,14 +1,17 @@
+import { collection, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { functions } from "../firebase";
+import { db, functions } from "../firebase";
 import {
   Card,
+  Expansion,
   RARITY_COLOR,
   RARITY_GRADIENT,
   RARITY_LABEL,
   RARITY_TIER,
   Rarity,
+  formatCardNumber,
 } from "../types";
 
 interface PackMeta {
@@ -38,6 +41,7 @@ export default function PackOpen() {
   const [result, setResult] = useState<OpenPackResult | null>(null);
   const [revealed, setRevealed] = useState<boolean[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [exps, setExps] = useState<Expansion[]>([]);
 
   useEffect(() => {
     if (!packId) return;
@@ -49,6 +53,18 @@ export default function PackOpen() {
       setPack(found);
     });
   }, [packId]);
+
+  useEffect(() => {
+    return onSnapshot(collection(db, "expansions"), (s) =>
+      setExps(s.docs.map((d) => ({ id: d.id, ...d.data() }) as Expansion))
+    );
+  }, []);
+
+  const expById = useMemo(() => {
+    const m = new Map<string, Expansion>();
+    for (const e of exps) m.set(e.id, e);
+    return m;
+  }, [exps]);
 
   async function open() {
     if (!packId) return;
@@ -204,6 +220,11 @@ export default function PackOpen() {
                           {RARITY_LABEL[result.rarities[i]]}
                         </span>
                         <div className="card-name">{card.name}</div>
+                        {(() => {
+                          const exp = card.expansionId ? expById.get(card.expansionId) : undefined;
+                          const label = formatCardNumber(card, exp);
+                          return label ? <code className="mini">{label}</code> : null;
+                        })()}
                       </div>
                     )}
                   </div>
