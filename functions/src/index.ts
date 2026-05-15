@@ -363,3 +363,51 @@ export const adminEditInventory = onCall<{
   });
   return { ok: true };
 });
+
+/**
+ * 관리자가 유저 인벤토리 항목들을 일괄 제거.
+ * - cardIds 가 비어있으면 (또는 undefined) 인벤토리 전체 삭제
+ * - cardIds 가 있으면 해당 카드만 삭제
+ */
+export const adminClearInventory = onCall<{
+  targetUid?: string;
+  cardIds?: string[];
+}>(callable, async (request) => {
+  const uid = request.auth?.uid;
+  requireAuth(uid);
+  await requireAdmin(uid);
+  const { targetUid, cardIds } = request.data;
+  if (!targetUid) {
+    throw new HttpsError("invalid-argument", "targetUid 필요");
+  }
+
+  const invCol = db.collection("users").doc(targetUid).collection("inventory");
+
+  let removed = 0;
+  if (!cardIds || cardIds.length === 0) {
+    // 전체 삭제 — 페이지네이션으로 모두 비우기
+    while (true) {
+      const snap = await invCol.limit(400).get();
+      if (snap.empty) break;
+      const batch = db.batch();
+      snap.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+      removed += snap.size;
+      if (snap.size < 400) break;
+    }
+  } else {
+    // 선택 삭제
+    for (let i = 0; i < cardIds.length; i += 400) {
+      const chunk = cardIds.slice(i, i + 400);
+      const batch = db.batch();
+      for (const cardId of chunk) {
+        batch.delete(invCol.doc(cardId));
+      }
+      await batch.commit();
+      removed += chunk.length;
+    }
+  }
+
+  logger.info("admin inventory clear", { actor: uid, targetUid, removed, all: !cardIds });
+  return { ok: true, removed };
+});

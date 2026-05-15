@@ -28,9 +28,11 @@ export function InventoryEditor({
   const [exps, setExps] = useState<Expansion[]>([]);
   const [allCards, setAllCards] = useState<Card[]>([]);
   const [busyCard, setBusyCard] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
   const [picked, setPicked] = useState<Card | null>(null);
   const [pickedAmount, setPickedAmount] = useState(1);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const u1 = onSnapshot(collection(db, "expansions"), (s) =>
@@ -106,6 +108,63 @@ export function InventoryEditor({
     setPicked(null);
     setPickerQuery("");
     setPickedAmount(1);
+  }
+
+  function toggleSelect(cardId: string) {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(cardId)) next.delete(cardId);
+      else next.add(cardId);
+      return next;
+    });
+  }
+  function selectAll() {
+    setSelected(new Set(rows.map((r) => r.cardId)));
+  }
+  function clearSelection() {
+    setSelected(new Set());
+  }
+
+  async function removeSelected() {
+    if (selected.size === 0) return;
+    if (!confirm(`선택한 ${selected.size}종을 컬렉션에서 제거할까요?`)) return;
+    setBulkBusy(true);
+    try {
+      await httpsCallable<
+        { targetUid: string; cardIds: string[] },
+        { ok: boolean; removed: number }
+      >(
+        functions,
+        "adminClearInventory"
+      )({ targetUid: uid, cardIds: Array.from(selected) });
+      setSelected(new Set());
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function removeAll() {
+    if (rows.length === 0) return;
+    if (!confirm(`이 유저의 컬렉션 전체 (${rows.length}종) 를 비웁니다. 진행할까요?`))
+      return;
+    if (!confirm("정말 전체 제거 하시겠어요? 되돌릴 수 없습니다.")) return;
+    setBulkBusy(true);
+    try {
+      await httpsCallable<
+        { targetUid: string },
+        { ok: boolean; removed: number }
+      >(
+        functions,
+        "adminClearInventory"
+      )({ targetUid: uid });
+      setSelected(new Set());
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   return (
@@ -198,13 +257,69 @@ export function InventoryEditor({
         </div>
 
         <div className="panel" style={{ marginTop: 12 }}>
-          <h2 className="h2" style={{ marginTop: 0 }}>보유 카드 ({rows.length}종)</h2>
+          <div className="row" style={{ justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap" }}>
+            <h2 className="h2" style={{ margin: 0 }}>
+              보유 카드 ({rows.length}종)
+              {selected.size > 0 && (
+                <span className="muted" style={{ fontSize: 13, marginLeft: 8, fontWeight: 500 }}>
+                  · 선택 {selected.size}
+                </span>
+              )}
+            </h2>
+            {rows.length > 0 && (
+              <div className="row">
+                <button
+                  className="secondary"
+                  onClick={selectAll}
+                  disabled={bulkBusy || selected.size === rows.length}
+                  style={{ fontSize: 12 }}
+                >
+                  전체 선택
+                </button>
+                <button
+                  className="secondary"
+                  onClick={clearSelection}
+                  disabled={bulkBusy || selected.size === 0}
+                  style={{ fontSize: 12 }}
+                >
+                  선택 해제
+                </button>
+                <button
+                  className="danger"
+                  onClick={removeSelected}
+                  disabled={bulkBusy || selected.size === 0}
+                  style={{ fontSize: 12 }}
+                >
+                  {bulkBusy ? "..." : `선택 제거 (${selected.size})`}
+                </button>
+                <button
+                  className="danger"
+                  onClick={removeAll}
+                  disabled={bulkBusy}
+                  style={{ fontSize: 12 }}
+                  title="이 유저의 인벤토리를 전부 비웁니다"
+                >
+                  {bulkBusy ? "..." : "전체 제거"}
+                </button>
+              </div>
+            )}
+          </div>
           {rows.length === 0 ? (
             <p className="muted">보유 카드 없음.</p>
           ) : (
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: 28 }}>
+                    <input
+                      type="checkbox"
+                      checked={selected.size === rows.length && rows.length > 0}
+                      ref={(el) => {
+                        if (el) el.indeterminate = selected.size > 0 && selected.size < rows.length;
+                      }}
+                      onChange={(e) => (e.target.checked ? selectAll() : clearSelection())}
+                    />
+                  </th>
                   <th></th>
                   <th>이름</th>
                   <th>등급</th>
@@ -219,6 +334,14 @@ export function InventoryEditor({
                   const label = r.card ? formatCardNumber(r.card, exp) : "";
                   return (
                     <tr key={r.cardId}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(r.cardId)}
+                          onChange={() => toggleSelect(r.cardId)}
+                          disabled={bulkBusy}
+                        />
+                      </td>
                       <td style={{ width: 40 }}>
                         {r.card?.imageUrl ? (
                           <img src={r.card.imageUrl} alt="" style={{ width: 28, height: 40, objectFit: "cover", borderRadius: 3 }} />
