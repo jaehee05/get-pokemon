@@ -2,6 +2,7 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { SafeImage } from "../SafeImage";
 import { db, functions } from "../firebase";
 import {
   Card,
@@ -14,6 +15,33 @@ import {
   formatCardNumber,
 } from "../types";
 import { formatCurrency, useProfile } from "../useProfile";
+
+/** 카드 앞면 — 이미지 로드 실패 시 placeholder 로 자동 폴백. */
+function CardFront({ card, tier }: { card: Card; tier: number }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [card.imageUrl]);
+  if (!card.imageUrl || failed) {
+    return (
+      <div className="placeholder">
+        <div className="emoji">🃏</div>
+        <div className="name">{card.name}</div>
+        <span
+          className="rarity-pill"
+          style={{ background: RARITY_COLOR[card.rarity] }}
+        >
+          {RARITY_LABEL[card.rarity]}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <>
+      <img src={card.imageUrl} alt={card.name} onError={() => setFailed(true)} />
+      {tier >= 1 && <div className="holo" />}
+      {tier >= 3 && <div className="shine-burst" />}
+    </>
+  );
+}
 
 interface PackMeta {
   id: string;
@@ -52,6 +80,11 @@ export default function PackOpen() {
   const [err, setErr] = useState<string | null>(null);
   const [exps, setExps] = useState<Expansion[]>([]);
   const [availability, setAvailability] = useState<number | null>(null);
+  const [backImageFailed, setBackImageFailed] = useState(false);
+
+  useEffect(() => {
+    setBackImageFailed(false);
+  }, [pack?.cardBackImageUrl]);
 
   async function refreshAvailability() {
     if (!packId) return;
@@ -197,14 +230,16 @@ export default function PackOpen() {
           <div className={`pack-art ${stage}`}>
             <div className="pack-glow" />
             <div className="pack-body">
-              {pack.imageUrl ? (
-                <img src={pack.imageUrl} alt={pack.name} />
-              ) : (
-                <div className="pack-cover">
-                  <div className="pack-emoji">📦</div>
-                  <div className="pack-title">{pack.name}</div>
-                </div>
-              )}
+              <SafeImage
+                src={pack.imageUrl}
+                alt={pack.name}
+                fallback={
+                  <div className="pack-cover">
+                    <div className="pack-emoji">📦</div>
+                    <div className="pack-title">{pack.name}</div>
+                  </div>
+                }
+              />
               <div className="pack-shine" />
               <div className="pack-tear" />
             </div>
@@ -324,14 +359,15 @@ export default function PackOpen() {
                         />
                       )}
                       <div
-                        className={`face back${pack.cardBackImageUrl ? " custom" : ""}`}
+                        className={`face back${pack.cardBackImageUrl && !backImageFailed ? " custom" : ""}`}
                       >
-                        {pack.cardBackImageUrl ? (
+                        {pack.cardBackImageUrl && !backImageFailed ? (
                           <>
                             <img
                               src={pack.cardBackImageUrl}
                               alt=""
                               className="back-image"
+                              onError={() => setBackImageFailed(true)}
                             />
                             <span className="tap-hint">탭</span>
                           </>
@@ -343,24 +379,7 @@ export default function PackOpen() {
                         )}
                       </div>
                       <div className="face front">
-                        {card.imageUrl ? (
-                          <>
-                            <img src={card.imageUrl} alt={card.name} />
-                            {tier >= 1 && <div className="holo" />}
-                            {tier >= 3 && <div className="shine-burst" />}
-                          </>
-                        ) : (
-                          <div className="placeholder">
-                            <div className="emoji">🃏</div>
-                            <div className="name">{card.name}</div>
-                            <span
-                              className="rarity-pill"
-                              style={{ background: RARITY_COLOR[card.rarity] }}
-                            >
-                              {RARITY_LABEL[card.rarity]}
-                            </span>
-                          </div>
-                        )}
+                        <CardFront card={card} tier={tier} />
                       </div>
                     </div>
                     {revealed[i] && (

@@ -1,5 +1,6 @@
 import { collection, doc, getDoc, onSnapshot } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
+import { SafeImage } from "../SafeImage";
 import { useAuth } from "../auth";
 import { db } from "../firebase";
 import {
@@ -227,11 +228,11 @@ export default function Inventory() {
             return (
               <div key={r.cardId} className="card">
                 <div className="thumb">
-                  {c.imageUrl ? (
-                    <img src={c.imageUrl} alt={c.name} />
-                  ) : (
-                    <span className="muted">No image</span>
-                  )}
+                  <SafeImage
+                    src={c.imageUrl}
+                    alt={c.name}
+                    fallback={<span className="muted">No image</span>}
+                  />
                   {r.count > 1 && (
                     <span
                       style={{

@@ -7,16 +7,19 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
+import { SafeImage } from "../SafeImage";
 import { db } from "../firebase";
 import {
   ALL_RARITIES,
   Card,
+  Expansion,
   Pack,
   RARITY_CODE,
   RARITY_COLOR,
   RARITY_LABEL,
   Rarity,
   SlotConfig,
+  formatCardNumber,
 } from "../types";
 
 /** 이전 등급 체계 → 새 코드. 기존 팩의 슬롯 가중치 호환용. */
@@ -76,6 +79,7 @@ function defaultSlots(n: number): SlotConfig[] {
 export default function AdminPacks() {
   const [packs, setPacks] = useState<Pack[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
+  const [exps, setExps] = useState<Expansion[]>([]);
   const [editing, setEditing] = useState<Pack | null>(null);
 
   useEffect(() => {
@@ -85,7 +89,10 @@ export default function AdminPacks() {
     const unsub2 = onSnapshot(collection(db, "cards"), (s) =>
       setCards(s.docs.map((d) => ({ id: d.id, ...d.data() }) as Card))
     );
-    return () => { unsub1(); unsub2(); };
+    const unsub3 = onSnapshot(collection(db, "expansions"), (s) =>
+      setExps(s.docs.map((d) => ({ id: d.id, ...d.data() }) as Expansion))
+    );
+    return () => { unsub1(); unsub2(); unsub3(); };
   }, []);
 
   async function create() {
@@ -135,6 +142,7 @@ export default function AdminPacks() {
         <PackEditor
           pack={editing}
           allCards={cards}
+          exps={exps}
           onClose={() => setEditing(null)}
           onSave={async (patch) => {
             await updateDoc(doc(db, "packs", editing.id), patch);
@@ -149,11 +157,13 @@ export default function AdminPacks() {
 function PackEditor({
   pack,
   allCards,
+  exps,
   onSave,
   onClose,
 }: {
   pack: Pack;
   allCards: Card[];
+  exps: Expansion[];
   onSave: (patch: Partial<Pack>) => Promise<void>;
   onClose: () => void;
 }) {
@@ -170,6 +180,53 @@ function PackEditor({
     legacyDetected ? migrateSlots(initialSlots) : initialSlots
   );
   const [pool, setPool] = useState<string[]>(pack.cardPool ?? []);
+  // 카드풀 필터: 확장팩 + 등급
+  const [poolExpFilter, setPoolExpFilter] = useState<string>(""); // "" = 전체, "none" = 확장팩 없음
+  const [poolRarityFilter, setPoolRarityFilter] = useState<Set<Rarity>>(
+    () => new Set(ALL_RARITIES)
+  );
+
+  const expById = useMemo(() => {
+    const m = new Map<string, Expansion>();
+    for (const e of exps) m.set(e.id, e);
+    return m;
+  }, [exps]);
+
+  const visibleCards = useMemo(() => {
+    return allCards
+      .filter((c) => {
+        if (poolExpFilter === "") return true;
+        if (poolExpFilter === "none") return !c.expansionId;
+        return c.expansionId === poolExpFilter;
+      })
+      .filter((c) => poolRarityFilter.has(c.rarity))
+      .sort((a, b) => {
+        const ea = a.expansionId ? expById.get(a.expansionId)?.code ?? "" : "";
+        const eb = b.expansionId ? expById.get(b.expansionId)?.code ?? "" : "";
+        if (ea !== eb) return ea.localeCompare(eb);
+        return (a.number ?? 0) - (b.number ?? 0);
+      });
+  }, [allCards, poolExpFilter, poolRarityFilter, expById]);
+
+  function togglePoolRarity(r: Rarity) {
+    setPoolRarityFilter((cur) => {
+      const next = new Set(cur);
+      if (next.has(r)) next.delete(r);
+      else next.add(r);
+      return next;
+    });
+  }
+
+  function selectAllVisible() {
+    const visibleIds = new Set(visibleCards.map((c) => c.id));
+    setPool((cur) => Array.from(new Set([...cur, ...visibleIds])));
+  }
+  function deselectAllVisible() {
+    const visibleIds = new Set(visibleCards.map((c) => c.id));
+    setPool((cur) => cur.filter((id) => !visibleIds.has(id)));
+  }
+
+  const visibleSelectedCount = visibleCards.filter((c) => pool.includes(c.id)).length;
 
   // cardCount 바뀌면 slots 길이 동기화
   function changeCardCount(n: number) {
@@ -348,25 +405,105 @@ function PackEditor({
         <h2 className="h2">카드 풀</h2>
         <p className="muted" style={{ fontSize: 12 }}>
           체크된 카드만 이 팩에서 등장 가능. 모두 해제하면 전체 활성 카드가 풀이 됩니다.
+          <br />
+          현재 풀에 <b style={{ color: "var(--text)" }}>{pool.length}</b>장 등록됨.
         </p>
+
+        <div className="row" style={{ marginBottom: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <label>
+            확장팩 필터
+            <select
+              value={poolExpFilter}
+              onChange={(e) => setPoolExpFilter(e.target.value)}
+              style={{ minWidth: 180 }}
+            >
+              <option value="">전체</option>
+              <option value="none">— 확장팩 없음</option>
+              {exps.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.code} {e.name ? `(${e.name})` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="col" style={{ gap: 4 }}>
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>등급 필터</span>
+            <div className="row" style={{ gap: 4, flexWrap: "wrap" }}>
+              {ALL_RARITIES.map((r) => {
+                const on = poolRarityFilter.has(r);
+                return (
+                  <button
+                    type="button"
+                    key={r}
+                    className={on ? "" : "secondary"}
+                    onClick={() => togglePoolRarity(r)}
+                    style={{
+                      fontSize: 10,
+                      padding: "3px 7px",
+                      background: on ? RARITY_COLOR[r] : undefined,
+                      color: on ? "#0a0d14" : undefined,
+                    }}
+                  >
+                    {r}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="row" style={{ marginBottom: 8, fontSize: 13 }}>
+          <span>
+            필터된 카드 <b>{visibleCards.length}</b>장
+            {visibleCards.length > 0 && (
+              <> · 그 중 풀에 포함 <b>{visibleSelectedCount}</b></>
+            )}
+          </span>
+          <button type="button" className="secondary" onClick={selectAllVisible} disabled={visibleCards.length === 0}>
+            필터 전체 선택
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={deselectAllVisible}
+            disabled={visibleSelectedCount === 0}
+          >
+            필터 전체 해제
+          </button>
+        </div>
+
         <div className="grid cards">
-          {allCards.map((c) => {
+          {visibleCards.map((c) => {
             const on = pool.includes(c.id);
+            const exp = c.expansionId ? expById.get(c.expansionId) : undefined;
+            const label = formatCardNumber(c, exp);
             return (
               <label key={c.id} className="card" style={{ outline: on ? `2px solid ${RARITY_COLOR[c.rarity]}` : "none" }}>
                 <div className="thumb">
-                  {c.imageUrl ? <img src={c.imageUrl} alt="" /> : <span className="muted">—</span>}
+                  <SafeImage
+                    src={c.imageUrl}
+                    alt=""
+                    fallback={<span className="muted">—</span>}
+                  />
                 </div>
                 <div className="row" style={{ justifyContent: "space-between" }}>
-                  <div className="name">{c.name}</div>
+                  <div className="name" style={{ fontSize: 12 }}>{c.name}</div>
                   <input type="checkbox" checked={on} onChange={() => togglePool(c.id)} />
                 </div>
-                <span className="rarity-pill" style={{ background: RARITY_COLOR[c.rarity] }}>
-                  {RARITY_LABEL[c.rarity]}
-                </span>
+                <div className="row" style={{ justifyContent: "space-between", gap: 4 }}>
+                  <span className="rarity-pill" style={{ background: RARITY_COLOR[c.rarity], fontSize: 10 }}>
+                    {RARITY_LABEL[c.rarity]}
+                  </span>
+                  {label && <code className="mini">{label}</code>}
+                </div>
               </label>
             );
           })}
+          {visibleCards.length === 0 && (
+            <div className="empty" style={{ gridColumn: "1 / -1" }}>
+              필터 조건에 맞는 카드가 없습니다.
+            </div>
+          )}
         </div>
 
         <div className="row" style={{ marginTop: 16, justifyContent: "flex-end" }}>

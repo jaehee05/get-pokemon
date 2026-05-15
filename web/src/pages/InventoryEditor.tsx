@@ -1,6 +1,7 @@
 import { collection, doc, getDoc, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { useEffect, useMemo, useState } from "react";
+import { SafeImage } from "../SafeImage";
 import { db, functions } from "../firebase";
 import {
   Card,
@@ -233,9 +234,12 @@ export function InventoryEditor({
                         style={{ cursor: "pointer" }}
                       >
                         <td style={{ width: 40 }}>
-                          {c.imageUrl ? (
-                            <img src={c.imageUrl} alt="" style={{ width: 28, height: 40, objectFit: "cover", borderRadius: 3 }} />
-                          ) : <span className="muted">—</span>}
+                          <SafeImage
+                            src={c.imageUrl}
+                            alt=""
+                            style={{ width: 28, height: 40, objectFit: "cover", borderRadius: 3 }}
+                            fallback={<span className="muted">—</span>}
+                          />
                         </td>
                         <td>{c.name}</td>
                         <td>
@@ -343,9 +347,12 @@ export function InventoryEditor({
                         />
                       </td>
                       <td style={{ width: 40 }}>
-                        {r.card?.imageUrl ? (
-                          <img src={r.card.imageUrl} alt="" style={{ width: 28, height: 40, objectFit: "cover", borderRadius: 3 }} />
-                        ) : <span className="muted">—</span>}
+                        <SafeImage
+                          src={r.card?.imageUrl}
+                          alt=""
+                          style={{ width: 28, height: 40, objectFit: "cover", borderRadius: 3 }}
+                          fallback={<span className="muted">—</span>}
+                        />
                       </td>
                       <td>{r.card?.name ?? <code className="mini">{r.cardId}</code>}</td>
                       <td>

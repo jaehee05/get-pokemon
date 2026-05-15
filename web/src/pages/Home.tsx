@@ -1,6 +1,7 @@
 import { httpsCallable } from "firebase/functions";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { SafeImage } from "../SafeImage";
 import { useAuth } from "../auth";
 import { functions } from "../firebase";
 import { formatCurrency, useProfile } from "../useProfile";
@@ -83,11 +84,11 @@ export default function Home() {
                 }}
               >
                 <div className="thumb">
-                  {p.imageUrl ? (
-                    <img src={p.imageUrl} alt={p.name} />
-                  ) : (
-                    <span className="pack-icon">📦</span>
-                  )}
+                  <SafeImage
+                    src={p.imageUrl}
+                    alt={p.name}
+                    fallback={<span className="pack-icon">📦</span>}
+                  />
                   <span className="badge">{p.cardCount}장</span>
                   {soldOut ? (
                     <div className="sold-out-stamp">

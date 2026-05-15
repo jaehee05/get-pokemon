@@ -6,6 +6,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
+import { SafeImage } from "../SafeImage";
 import { db } from "../firebase";
 import {
   ALL_RARITIES,
@@ -274,13 +275,12 @@ export default function AdminStock() {
                 return (
                   <tr key={c.id}>
                     <td>
-                      {c.imageUrl ? (
-                        <img
-                          src={c.imageUrl}
-                          alt=""
-                          style={{ width: 28, height: 40, objectFit: "cover", borderRadius: 3 }}
-                        />
-                      ) : <span className="muted">—</span>}
+                      <SafeImage
+                        src={c.imageUrl}
+                        alt=""
+                        style={{ width: 28, height: 40, objectFit: "cover", borderRadius: 3 }}
+                        fallback={<span className="muted">—</span>}
+                      />
                     </td>
                     <td><code className="mini">{label || (c.number != null ? String(c.number).padStart(3, "0") : "")}</code></td>
                     <td>{c.name}</td>

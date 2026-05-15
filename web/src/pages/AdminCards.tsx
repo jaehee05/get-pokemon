@@ -7,6 +7,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
+import { SafeImage } from "../SafeImage";
 import { db } from "../firebase";
 import {
   ALL_RARITIES,
@@ -199,27 +200,26 @@ export default function AdminCards() {
                 <tr key={c.id}>
                   <td style={{ verticalAlign: "top" }}>
                     <div className="col" style={{ gap: 4, alignItems: "flex-start" }}>
-                      {c.imageUrl ? (
-                        <img
-                          src={c.imageUrl}
-                          alt=""
-                          style={{ width: 40, height: 56, objectFit: "cover", borderRadius: 4 }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            width: 40, height: 56,
-                            display: "grid", placeItems: "center",
-                            background: "var(--panel-2)",
-                            border: "1px dashed var(--border-strong)",
-                            borderRadius: 4,
-                            color: "var(--muted)",
-                            fontSize: 10,
-                          }}
-                        >
-                          없음
-                        </div>
-                      )}
+                      <SafeImage
+                        src={c.imageUrl}
+                        alt=""
+                        style={{ width: 40, height: 56, objectFit: "cover", borderRadius: 4 }}
+                        fallback={
+                          <div
+                            style={{
+                              width: 40, height: 56,
+                              display: "grid", placeItems: "center",
+                              background: "var(--panel-2)",
+                              border: "1px dashed var(--border-strong)",
+                              borderRadius: 4,
+                              color: "var(--muted)",
+                              fontSize: 10,
+                            }}
+                          >
+                            없음
+                          </div>
+                        }
+                      />
                       <input
                         value={c.imageUrl ?? ""}
                         onChange={(e) => patch(c.id, "imageUrl", e.target.value)}
