@@ -152,6 +152,7 @@ export default function AdminExpansions() {
 
       <BulkImport exps={exps} />
       <BulkImageImport exps={exps} />
+      <PatternImageImport exps={exps} />
     </div>
   );
 }
@@ -554,6 +555,264 @@ function BulkImageImport({ exps }: { exps: Expansion[] }) {
             ✔ 적용 {report.updated}
             {report.missing > 0 ? ` · 카드 없음 ${report.missing}` : ""}
             {report.skipped > 0 ? ` · 형식 오류 ${report.skipped}` : ""}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Pattern-based auto image URL fill ---------- */
+
+interface UrlPattern {
+  prefix: string;
+  padding: number;
+  suffix: string;
+}
+
+/**
+ * URL 안에서 sourceNumber 에 해당하는 가장 긴 0-padded 표현을 찾아
+ * {prefix, padding, suffix} 로 분해. 앞뒤가 다른 숫자가 아닐 때만 매칭.
+ */
+function detectPattern(url: string, sourceNumber: number): UrlPattern | null {
+  for (let pad = 6; pad >= 1; pad--) {
+    const padded = String(sourceNumber).padStart(pad, "0");
+    let from = 0;
+    while (from <= url.length - padded.length) {
+      const idx = url.indexOf(padded, from);
+      if (idx === -1) break;
+      const before = url[idx - 1];
+      const after = url[idx + padded.length];
+      if (!(before && /\d/.test(before)) && !(after && /\d/.test(after))) {
+        return {
+          prefix: url.slice(0, idx),
+          padding: pad,
+          suffix: url.slice(idx + padded.length),
+        };
+      }
+      from = idx + 1;
+    }
+  }
+  return null;
+}
+
+function applyPattern(pattern: UrlPattern, num: number): string {
+  return pattern.prefix + String(num).padStart(pattern.padding, "0") + pattern.suffix;
+}
+
+function PatternImageImport({ exps }: { exps: Expansion[] }) {
+  const [expansionId, setExpansionId] = useState<string>("");
+  const [sampleNumber, setSampleNumber] = useState<number>(1);
+  const [sampleUrl, setSampleUrl] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  const [overwrite, setOverwrite] = useState(false);
+  const [report, setReport] = useState<{
+    updated: number; skipped: number;
+  } | null>(null);
+  const [cardsForExp, setCardsForExp] = useState<Array<{ id: string; number?: number; imageUrl?: string }>>([]);
+
+  // 선택한 확장팩의 카드를 한 번 로드 (preview 용)
+  useEffect(() => {
+    if (!expansionId) {
+      setCardsForExp([]);
+      return;
+    }
+    let cancelled = false;
+    getDocs(query(collection(db, "cards"), where("expansionId", "==", expansionId)))
+      .then((snap) => {
+        if (cancelled) return;
+        setCardsForExp(
+          snap.docs.map((d) => {
+            const data = d.data() as { number?: unknown; imageUrl?: unknown };
+            return {
+              id: d.id,
+              number: typeof data.number === "number" ? data.number : undefined,
+              imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : "",
+            };
+          })
+        );
+      });
+    return () => { cancelled = true; };
+  }, [expansionId]);
+
+  const pattern = useMemo(() => {
+    if (!sampleUrl || !Number.isFinite(sampleNumber)) return null;
+    return detectPattern(sampleUrl, sampleNumber);
+  }, [sampleUrl, sampleNumber]);
+
+  const previewRows = useMemo(() => {
+    if (!pattern) return [];
+    return cardsForExp
+      .filter((c) => c.number != null)
+      .sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
+      .slice(0, 5)
+      .map((c) => ({
+        number: c.number!,
+        url: applyPattern(pattern, c.number!),
+      }));
+  }, [pattern, cardsForExp]);
+
+  const targets = useMemo(() => {
+    if (!pattern) return [];
+    return cardsForExp
+      .filter((c) => c.number != null)
+      .filter((c) => overwrite || !c.imageUrl);
+  }, [pattern, cardsForExp, overwrite]);
+
+  async function apply() {
+    if (!pattern || targets.length === 0) return;
+    setBusy(true);
+    setReport(null);
+    try {
+      let updated = 0;
+      const skipped = cardsForExp.filter((c) => c.number == null).length;
+      for (let i = 0; i < targets.length; i += 400) {
+        const chunk = targets.slice(i, i + 400);
+        const batch = writeBatch(db);
+        for (const c of chunk) {
+          if (c.number == null) continue;
+          batch.update(doc(db, "cards", c.id), {
+            imageUrl: applyPattern(pattern, c.number),
+          });
+          updated++;
+        }
+        await batch.commit();
+      }
+      // refresh local
+      const snap = await getDocs(
+        query(collection(db, "cards"), where("expansionId", "==", expansionId))
+      );
+      setCardsForExp(
+        snap.docs.map((d) => {
+          const data = d.data() as { number?: unknown; imageUrl?: unknown };
+          return {
+            id: d.id,
+            number: typeof data.number === "number" ? data.number : undefined,
+            imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : "",
+          };
+        })
+      );
+      setReport({ updated, skipped });
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const cardsWithNumber = cardsForExp.filter((c) => c.number != null).length;
+  const cardsAlreadyHaveImage = cardsForExp.filter((c) => c.number != null && c.imageUrl).length;
+
+  return (
+    <div className="panel">
+      <h2 className="h2">이미지 URL 패턴 자동 채우기</h2>
+      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+        샘플 카드의 URL 하나만 입력하면 같은 확장팩의 모든 카드에 동일한 패턴으로 자동 적용.
+        예: <code className="mini">.../M4_001.png?w=400</code> 으로 #1 을 지정하면 #2 는 <code className="mini">_002</code>, #84 는 <code className="mini">_084</code> 로 변환.
+      </p>
+
+      <div className="row" style={{ marginBottom: 10 }}>
+        <label>
+          확장팩
+          <select
+            value={expansionId}
+            onChange={(e) => setExpansionId(e.target.value)}
+            style={{ minWidth: 180 }}
+          >
+            <option value="">— 선택 —</option>
+            {exps.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.code} {e.name ? `(${e.name})` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          샘플 카드 번호
+          <input
+            type="number"
+            min={1}
+            value={sampleNumber}
+            onChange={(e) => setSampleNumber(Number(e.target.value))}
+            style={{ width: 100 }}
+          />
+        </label>
+      </div>
+
+      <label style={{ marginBottom: 8 }}>
+        샘플 URL
+        <input
+          value={sampleUrl}
+          onChange={(e) => setSampleUrl(e.target.value)}
+          placeholder="https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M4/M4_001.png?w=400"
+          style={{ width: "100%", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12 }}
+        />
+      </label>
+
+      {sampleUrl && (
+        <div style={{ marginTop: 8 }}>
+          {pattern ? (
+            <div className="col" style={{ gap: 8 }}>
+              <div style={{ fontSize: 13 }}>
+                <span style={{ color: "var(--ok)" }}>✔ 패턴 인식</span> · 자릿수 <b>{pattern.padding}</b>
+              </div>
+              <div style={{ fontSize: 12, fontFamily: "ui-monospace, Menlo, monospace", wordBreak: "break-all", color: "var(--muted)" }}>
+                <span>{pattern.prefix}</span>
+                <span style={{ background: "rgba(255,203,5,0.25)", color: "var(--text)", padding: "0 2px", borderRadius: 3 }}>
+                  {String(sampleNumber).padStart(pattern.padding, "0")}
+                </span>
+                <span>{pattern.suffix}</span>
+              </div>
+
+              {previewRows.length > 0 && (
+                <div>
+                  <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>처음 5장 미리보기:</div>
+                  <table>
+                    <tbody>
+                      {previewRows.map((p) => (
+                        <tr key={p.number}>
+                          <td><code className="mini">{String(p.number).padStart(pattern.padding, "0")}</code></td>
+                          <td style={{ fontSize: 11, wordBreak: "break-all" }}>{p.url}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="row" style={{ marginTop: 4, fontSize: 13 }}>
+                <span>이 확장팩 카드 <b>{cardsForExp.length}</b></span>
+                <span>그 중 번호 있음 <b>{cardsWithNumber}</b></span>
+                <span style={{ color: "var(--muted)" }}>이미 이미지 있음 {cardsAlreadyHaveImage}</span>
+              </div>
+              <label className="row" style={{ gap: 6, fontSize: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={overwrite}
+                  onChange={(e) => setOverwrite(e.target.checked)}
+                />
+                이미 이미지가 있는 카드도 덮어쓰기
+              </label>
+            </div>
+          ) : (
+            <p style={{ color: "var(--danger)", fontSize: 13 }}>
+              URL 에서 샘플 번호 <b>{sampleNumber}</b> 를 찾을 수 없습니다. 번호가 맞는지 확인해주세요.
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="row" style={{ marginTop: 12 }}>
+        <button
+          onClick={apply}
+          disabled={busy || !pattern || targets.length === 0}
+        >
+          {busy ? "적용 중..." : `${targets.length}건 적용`}
+        </button>
+        {report && (
+          <span style={{ color: "var(--ok)", fontSize: 14 }}>
+            ✔ 적용 {report.updated}
+            {report.skipped > 0 ? ` · 번호 없는 카드 ${report.skipped} 건너뜀` : ""}
           </span>
         )}
       </div>
