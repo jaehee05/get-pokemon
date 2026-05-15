@@ -26,7 +26,7 @@ const blank: Omit<Card, "id"> = {
   isActive: true,
   expansionId: "",
   number: undefined,
-  stock: 0,
+  // stock 은 의도적으로 미설정 (기본 0). 재고는 "재고 관리" 페이지에서 별도로.
 };
 
 export default function AdminCards() {
@@ -146,18 +146,6 @@ export default function AdminCards() {
             />
           </label>
           <label>
-            재고
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={draft.stock ?? 0}
-              onChange={(e) => setDraft({ ...draft, stock: Number(e.target.value) })}
-              style={{ width: 90 }}
-              title="0 이면 가챠 후보에서 제외"
-            />
-          </label>
-          <label>
             활성
             <input
               type="checkbox"
@@ -182,6 +170,13 @@ export default function AdminCards() {
               <th>재고</th>
               <th>활성</th>
               <th></th>
+            </tr>
+            <tr>
+              <td colSpan={8} style={{ borderBottom: 0, padding: "4px 8px" }}>
+                <span className="muted" style={{ fontSize: 11 }}>
+                  재고 변경은 <b>재고 관리</b> 페이지에서 하세요 (필터 / 일괄 작업 / 등급별 합계 가능).
+                </span>
+              </td>
             </tr>
           </thead>
           <tbody>
@@ -257,24 +252,15 @@ export default function AdminCards() {
                       style={{ width: 70 }}
                     />
                   </td>
-                  <td>
-                    <div className="row" style={{ gap: 4 }}>
-                      <input
-                        type="number"
-                        min={0}
-                        value={c.stock ?? 0}
-                        onChange={(e) => patch(c.id, "stock", Number(e.target.value))}
-                        style={{ width: 70 }}
-                        title="0 이면 가챠 후보에서 제외"
-                      />
-                      <button
-                        className="secondary"
-                        onClick={() => patch(c.id, "stock", (c.stock ?? 0) + 10)}
-                        style={{ fontSize: 11, padding: "4px 6px" }}
-                      >
-                        +10
-                      </button>
-                    </div>
+                  <td
+                    style={{
+                      textAlign: "right",
+                      color: (c.stock ?? 0) > 0 ? "var(--text)" : "var(--muted)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                    title="재고 관리 페이지에서 수정"
+                  >
+                    {c.stock ?? 0}
                   </td>
                   <td>
                     <input
