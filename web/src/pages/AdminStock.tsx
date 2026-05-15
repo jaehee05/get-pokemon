@@ -216,8 +216,12 @@ export default function AdminStock() {
             값
             <input
               type="number"
-              value={bulkValue}
-              onChange={(e) => setBulkValue(Number(e.target.value))}
+              value={bulkValue === 0 ? "" : bulkValue}
+              placeholder="0"
+              onChange={(e) => {
+                const v = e.target.value;
+                setBulkValue(v === "" ? 0 : Number(v));
+              }}
               style={{ width: 100 }}
             />
           </label>

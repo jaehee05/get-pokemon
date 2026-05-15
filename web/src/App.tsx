@@ -25,6 +25,23 @@ export default function App() {
       .catch(() => setSystemHasAdmin(null));
   }, [user]);
 
+  // 숫자 input 에 포커스가 들어올 때 자동 전체 선택 — 0 부터 시작해서
+  // 매번 지워야 하는 불편함 제거.
+  useEffect(() => {
+    function onFocusIn(e: FocusEvent) {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (t.tagName === "INPUT" && (t as HTMLInputElement).type === "number") {
+        // requestAnimationFrame 한 번 — Safari/Chrome 모두 안정적으로 동작
+        requestAnimationFrame(() => {
+          try { (t as HTMLInputElement).select(); } catch { /* ignore */ }
+        });
+      }
+    }
+    document.addEventListener("focusin", onFocusIn);
+    return () => document.removeEventListener("focusin", onFocusIn);
+  }, []);
+
   async function claimAdmin() {
     if (!confirm("관리자 권한을 시도합니다. (아직 등록된 admin 이 없는 첫 호출자만 통과)")) return;
     setClaiming(true);

@@ -126,13 +126,15 @@ export default function AdminUsers() {
                     <div className="row">
                       <input
                         type="number"
-                        value={amt}
-                        onChange={(e) =>
+                        value={amt === 0 ? "" : amt}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const v = e.target.value;
                           setPendingAmount((p) => ({
                             ...p,
-                            [u.uid]: Number(e.target.value),
-                          }))
-                        }
+                            [u.uid]: v === "" ? 0 : Number(v),
+                          }));
+                        }}
                         style={{ width: 100 }}
                       />
                       <button
