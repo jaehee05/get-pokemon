@@ -19,6 +19,46 @@ import {
   SlotConfig,
 } from "../types";
 
+/** 이전 등급 체계 → 새 코드. 기존 팩의 슬롯 가중치 호환용. */
+const LEGACY_RARITY_MAP: Record<string, Rarity> = {
+  common: "C",
+  uncommon: "U",
+  rare: "R",
+  super_rare: "SR",
+  secret_rare: "SAR",
+};
+
+const RARITY_SET: ReadonlySet<string> = new Set(ALL_RARITIES);
+
+/** 슬롯 하나의 가중치를 마이그레이션 — 이전 키는 새 키로 옮기고, 알 수 없는 키는 버림. */
+function migrateSlot(s: SlotConfig): SlotConfig {
+  const out: SlotConfig["rarityWeights"] = {};
+  for (const [k, v] of Object.entries(s.rarityWeights ?? {})) {
+    if (typeof v !== "number") continue;
+    if (RARITY_SET.has(k)) {
+      out[k as Rarity] = (out[k as Rarity] ?? 0) + v;
+    } else if (LEGACY_RARITY_MAP[k]) {
+      const nk = LEGACY_RARITY_MAP[k];
+      out[nk] = (out[nk] ?? 0) + v;
+    }
+    // 그 외는 drop
+  }
+  return { rarityWeights: out };
+}
+
+function migrateSlots(slots: SlotConfig[]): SlotConfig[] {
+  return slots.map(migrateSlot);
+}
+
+/** 한 슬롯이라도 이전 키가 있으면 true. */
+function hasLegacyKeys(slots: SlotConfig[]): boolean {
+  return slots.some((s) =>
+    Object.keys(s.rarityWeights ?? {}).some(
+      (k) => !RARITY_SET.has(k) && LEGACY_RARITY_MAP[k]
+    )
+  );
+}
+
 function defaultSlots(n: number): SlotConfig[] {
   // TCG Pocket 풍 기본값: 앞 슬롯은 C, 마지막 1~2개가 Hit
   return Array.from({ length: n }, (_, i) => {
@@ -122,8 +162,11 @@ function PackEditor({
   const [cardCount, setCardCount] = useState(pack.cardCount);
   const [price, setPrice] = useState(pack.price ?? 0);
   const [isActive, setIsActive] = useState(pack.isActive);
+  const initialSlots =
+    pack.slots?.length === pack.cardCount ? pack.slots : defaultSlots(pack.cardCount);
+  const legacyDetected = hasLegacyKeys(initialSlots);
   const [slots, setSlots] = useState<SlotConfig[]>(
-    pack.slots?.length === pack.cardCount ? pack.slots : defaultSlots(pack.cardCount)
+    legacyDetected ? migrateSlots(initialSlots) : initialSlots
   );
   const [pool, setPool] = useState<string[]>(pack.cardPool ?? []);
 
@@ -188,6 +231,22 @@ function PackEditor({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="h2">팩 편집</h2>
+        {legacyDetected && (
+          <div
+            style={{
+              background: "rgba(255,203,5,0.12)",
+              border: "1px solid rgba(255,203,5,0.4)",
+              borderRadius: 10,
+              padding: "10px 12px",
+              marginBottom: 12,
+              fontSize: 13,
+            }}
+          >
+            ⚠️ 이전 등급 체계가 감지되어 자동 변환했습니다
+            (common→C, uncommon→U, rare→R, super_rare→SR, secret_rare→SAR).
+            <b> 저장</b>을 눌러야 영구 반영됩니다.
+          </div>
+        )}
         <div className="row">
           <label>이름 <input value={name} onChange={(e) => setName(e.target.value)} /></label>
           <label>
