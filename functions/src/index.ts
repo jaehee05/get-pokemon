@@ -550,6 +550,163 @@ export const adminClearInventory = onCall<{
   return { ok: true, removed };
 });
 
+/* =============== Charge =============== */
+
+interface PaymentConfig {
+  bankName?: string;
+  bankAccount?: string;
+  accountHolder?: string;
+}
+
+/** 결제(입금) 정보 조회. 누구나 호출. */
+export const getPaymentConfig = onCall(callable, async () => {
+  const snap = await db.collection("config").doc("payment").get();
+  const data = (snap.data() as PaymentConfig | undefined) ?? {};
+  return {
+    bankName: data.bankName ?? "",
+    bankAccount: data.bankAccount ?? "",
+    accountHolder: data.accountHolder ?? "",
+  };
+});
+
+/** 결제 정보 설정. 관리자 전용. */
+export const setPaymentConfig = onCall<PaymentConfig>(
+  callable,
+  async (request) => {
+    const uid = request.auth?.uid;
+    requireAuth(uid);
+    await requireAdmin(uid);
+    const bankName = (request.data.bankName ?? "").trim();
+    const bankAccount = (request.data.bankAccount ?? "").trim();
+    const accountHolder = (request.data.accountHolder ?? "").trim();
+    await db.collection("config").doc("payment").set(
+      { bankName, bankAccount, accountHolder },
+      { merge: true }
+    );
+    return { ok: true, bankName, bankAccount, accountHolder };
+  }
+);
+
+/**
+ * 캐시 충전 신청.
+ * method = "card" → amount + phone 필요
+ * method = "bank" → amount + depositorName 필요
+ * 캐시는 관리자 승인 시 적립됨.
+ */
+export const requestCharge = onCall<{
+  method?: "card" | "bank";
+  amount?: number;
+  phone?: string;
+  depositorName?: string;
+}>(callable, async (request) => {
+  const uid = request.auth?.uid;
+  requireAuth(uid);
+  const { method, amount, phone, depositorName } = request.data;
+
+  if (method !== "card" && method !== "bank") {
+    throw new HttpsError("invalid-argument", "method 는 card 또는 bank.");
+  }
+  const amt = Math.floor(Number(amount));
+  if (!Number.isFinite(amt) || amt < 1000) {
+    throw new HttpsError("invalid-argument", "충전 금액은 1,000 C 이상이어야 합니다.");
+  }
+  if (amt > 10_000_000) {
+    throw new HttpsError("invalid-argument", "충전 금액은 10,000,000 C 이하여야 합니다.");
+  }
+
+  let payload: Record<string, unknown> = {
+    uid,
+    userEmail: request.auth?.token.email ?? null,
+    userDisplayName: request.auth?.token.name ?? null,
+    method,
+    amount: amt,
+    status: "pending",
+    createdAt: FieldValue.serverTimestamp(),
+  };
+
+  if (method === "card") {
+    const p = (phone ?? "").trim();
+    if (!p) throw new HttpsError("invalid-argument", "전화번호를 입력해주세요.");
+    payload.phone = p;
+  } else {
+    const n = (depositorName ?? "").trim();
+    if (!n) throw new HttpsError("invalid-argument", "입금자명을 입력해주세요.");
+    payload.depositorName = n;
+  }
+
+  const ref = db.collection("chargeRequests").doc();
+  await ref.set(payload);
+
+  // 은행 계좌 정보도 함께 반환 (계좌이체일 때 화면에서 사용)
+  const cfg = await db.collection("config").doc("payment").get();
+  const cfgData = (cfg.data() as PaymentConfig | undefined) ?? {};
+
+  logger.info("charge requested", { uid, requestId: ref.id, method, amount: amt });
+  return {
+    ok: true,
+    requestId: ref.id,
+    bankName: cfgData.bankName ?? "",
+    bankAccount: cfgData.bankAccount ?? "",
+    accountHolder: cfgData.accountHolder ?? "",
+  };
+});
+
+/** 충전 승인 (관리자). 캐시 적립 + 상태 변경. */
+export const approveCharge = onCall<{ requestId?: string }>(
+  callable,
+  async (request) => {
+    const uid = request.auth?.uid;
+    requireAuth(uid);
+    await requireAdmin(uid);
+    const { requestId } = request.data;
+    if (!requestId) throw new HttpsError("invalid-argument", "requestId 필요");
+
+    const reqRef = db.collection("chargeRequests").doc(requestId);
+    await db.runTransaction(async (tx) => {
+      const r = await tx.get(reqRef);
+      if (!r.exists) throw new HttpsError("not-found", "신청 없음");
+      const data = r.data() as { uid: string; amount: number; status: string };
+      if (data.status === "completed") {
+        throw new HttpsError("failed-precondition", "이미 승인 완료된 신청입니다.");
+      }
+      tx.update(reqRef, {
+        status: "completed",
+        completedAt: FieldValue.serverTimestamp(),
+        approvedBy: uid,
+      });
+      tx.set(
+        db.collection("users").doc(data.uid),
+        { currency: FieldValue.increment(data.amount) },
+        { merge: true }
+      );
+    });
+
+    return { ok: true };
+  }
+);
+
+/** 충전 취소 (관리자). 캐시 적립 없음. */
+export const cancelCharge = onCall<{ requestId?: string; reason?: string }>(
+  callable,
+  async (request) => {
+    const uid = request.auth?.uid;
+    requireAuth(uid);
+    await requireAdmin(uid);
+    const { requestId, reason } = request.data;
+    if (!requestId) throw new HttpsError("invalid-argument", "requestId 필요");
+    await db.collection("chargeRequests").doc(requestId).set(
+      {
+        status: "cancelled",
+        cancelledAt: FieldValue.serverTimestamp(),
+        cancelledBy: uid,
+        adminNote: reason ?? null,
+      },
+      { merge: true }
+    );
+    return { ok: true };
+  }
+);
+
 /* =============== Decompose =============== */
 
 type DecomposeValues = Partial<Record<Rarity, number>>;

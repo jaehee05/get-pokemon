@@ -172,6 +172,18 @@ main {
   border-radius: var(--r-pill);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+  font-weight: inherit;
+  letter-spacing: -0.005em;
+}
+button.balance-pill {
+  box-shadow: none;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.08s ease;
+}
+button.balance-pill:hover {
+  filter: none;
+  background: linear-gradient(135deg, rgba(255,210,51,0.28), rgba(255,210,51,0.10));
+  box-shadow: 0 0 0 2px rgba(255,210,51,0.18);
 }
 
 .c-mark {

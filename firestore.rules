@@ -39,6 +39,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // 충전 신청: 본인 + 관리자 읽기. 쓰기는 functions 만.
+    match /chargeRequests/{requestId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
     // 팩 정의: 확률 가중치(slots/cardPool)를 숨기기 위해 client read 차단.
     // 일반 사용자는 callable `listActivePacks` 로 슬림 메타데이터만 받는다.
     match /packs/{packId} {

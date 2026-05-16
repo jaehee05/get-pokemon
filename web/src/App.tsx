@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import Inventory from "./pages/Inventory";
 import PackOpen from "./pages/PackOpen";
 import { CurrencyMark } from "./CurrencyMark";
+import { ChargeDialog } from "./pages/ChargeDialog";
 import { formatCurrency, useProfile } from "./useProfile";
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
   const profile = useProfile();
   const location = useLocation();
   const [authOpen, setAuthOpen] = useState(false);
+  const [chargeOpen, setChargeOpen] = useState(false);
   const [claiming, setClaiming] = useState(false);
   // null = 모르는 상태(체크 중), true = admin 존재, false = 아직 없음
   const [systemHasAdmin, setSystemHasAdmin] = useState<boolean | null>(null);
@@ -88,12 +90,18 @@ export default function App() {
         <div className="auth">
           {user ? (
             <>
-              <div className="balance-pill" title="보유 캐시">
+              <button
+                className="balance-pill"
+                title="클릭하여 충전"
+                onClick={() => setChargeOpen(true)}
+                style={{ cursor: "pointer", border: "1px solid rgba(255,210,51,0.4)" }}
+              >
                 <CurrencyMark size={16} />
                 <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>
                   {formatCurrency(profile?.currency ?? 0)}
                 </span>
-              </div>
+                <span style={{ marginLeft: 4, color: "var(--accent)", fontWeight: 800 }}>+</span>
+              </button>
               <span className="muted" style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {user.displayName || user.email || "Trainer"}
               </span>
@@ -135,6 +143,7 @@ export default function App() {
       </main>
 
       {authOpen && <AuthDialog onClose={() => setAuthOpen(false)} />}
+      {chargeOpen && user && <ChargeDialog onClose={() => setChargeOpen(false)} />}
     </div>
   );
 }
