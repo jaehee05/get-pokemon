@@ -26,9 +26,8 @@ export default function Inventory() {
   const [rows, setRows] = useState<InvRow[]>([]);
   const [exps, setExps] = useState<Expansion[]>([]);
   const [expFilter, setExpFilter] = useState<string>("");
-  const [rarityFilter, setRarityFilter] = useState<Set<Rarity>>(
-    () => new Set(ALL_RARITIES)
-  );
+  // 빈 set = 등급 필터 없음 (전체 표시). 1개 이상 선택 시 해당 등급만.
+  const [rarityFilter, setRarityFilter] = useState<Set<Rarity>>(new Set());
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -66,7 +65,7 @@ export default function Inventory() {
     return rows
       .filter((r) => !!r.card)
       .filter((r) => (expFilter ? r.card!.expansionId === expFilter : true))
-      .filter((r) => rarityFilter.has(r.card!.rarity))
+      .filter((r) => rarityFilter.size === 0 || rarityFilter.has(r.card!.rarity))
       .filter((r) => {
         if (!q) return true;
         const exp = r.card!.expansionId ? expById.get(r.card!.expansionId) : undefined;
@@ -151,7 +150,13 @@ export default function Inventory() {
             />
           </label>
         </div>
-        <div className="row" style={{ gap: 4, flexWrap: "wrap" }}>
+        <div className="row" style={{ gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: 12, color: "var(--muted)", marginRight: 4 }}>
+            등급
+            {rarityFilter.size === 0 && (
+              <span style={{ marginLeft: 6 }}>(전체)</span>
+            )}
+          </span>
           {ALL_RARITIES.map((r) => {
             const on = rarityFilter.has(r);
             return (
@@ -170,13 +175,15 @@ export default function Inventory() {
               </button>
             );
           })}
-          <button
-            className="secondary"
-            onClick={() => setRarityFilter(new Set(ALL_RARITIES))}
-            style={{ fontSize: 11, padding: "4px 8px" }}
-          >
-            전체
-          </button>
+          {rarityFilter.size > 0 && (
+            <button
+              className="secondary"
+              onClick={() => setRarityFilter(new Set())}
+              style={{ fontSize: 11, padding: "4px 8px" }}
+            >
+              해제
+            </button>
+          )}
         </div>
       </div>
 
