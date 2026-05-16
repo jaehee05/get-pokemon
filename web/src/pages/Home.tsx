@@ -28,9 +28,26 @@ export default function Home() {
       functions,
       "listActivePacks"
     );
-    call({})
-      .then((r) => setPacks(r.data.packs))
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+    let cancelled = false;
+    function refresh() {
+      call({})
+        .then((r) => { if (!cancelled) setPacks(r.data.packs); })
+        .catch((e) => { if (!cancelled) setErr(e instanceof Error ? e.message : String(e)); });
+    }
+    refresh();
+    // 10초 간격 폴링 + 탭이 다시 활성화될 때 즉시 갱신
+    const interval = setInterval(refresh, 10000);
+    function onVisibility() {
+      if (!document.hidden) refresh();
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", refresh);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", refresh);
+    };
   }, []);
 
   return (

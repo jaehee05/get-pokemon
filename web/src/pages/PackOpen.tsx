@@ -103,6 +103,18 @@ export default function PackOpen() {
 
   useEffect(() => {
     void refreshAvailability();
+    // 10초 간격 폴링 + 탭 활성화 시 즉시 갱신 (다른 사용자가 뽑아 stock 이 바뀌어도 반영)
+    const interval = setInterval(() => { void refreshAvailability(); }, 10000);
+    function onVisibility() {
+      if (!document.hidden) void refreshAvailability();
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", refreshAvailability);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", refreshAvailability);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [packId]);
 
