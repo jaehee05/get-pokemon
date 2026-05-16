@@ -68,7 +68,7 @@ interface OpenPackResult {
 type Stage = "idle" | "opening" | "revealed";
 
 const MIN_OPEN_MS = 1400;
-const AUTO_BACK_MS = 4500;
+const AUTO_BACK_MS = 7000;
 
 export default function PackOpen() {
   const { packId } = useParams<{ packId: string }>();
@@ -427,18 +427,12 @@ export default function PackOpen() {
                 className={allRevealed ? "" : "secondary"}
                 disabled={resetting}
               >
-                {allRevealed ? "← 이전으로" : "전부 공개"}
+                {allRevealed ? "이전으로" : "전부 공개"}
               </button>
               <button onClick={againOrRevealFirst} disabled={resetting}>
                 {resetting ? "공개 중..." : "한 번 더"}
               </button>
             </div>
-            {allRevealed && !resetting && (
-              <div className="auto-back">
-                <span className="auto-back-bar" />
-                <span className="auto-back-text">잠시 후 자동으로 돌아갑니다...</span>
-              </div>
-            )}
           </div>
         </>
       )}
