@@ -1,6 +1,7 @@
 import { httpsCallable } from "firebase/functions";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { CurrencyMark } from "../CurrencyMark";
 import { SafeImage } from "../SafeImage";
 import { useAuth } from "../auth";
 import { functions } from "../firebase";
@@ -43,7 +44,7 @@ export default function Home() {
         {user && (
           <div className="hero-balance row" style={{ gap: 12 }}>
             <span className="balance-pill" style={{ fontSize: 14 }}>
-              <span>💎</span>
+              <CurrencyMark size={16} />
               <b>{formatCurrency(balance)}</b>
             </span>
             <span className="muted" style={{ fontSize: 12 }}>보유 캐시</span>
@@ -145,7 +146,16 @@ export default function Home() {
                         : "var(--accent)",
                     }}
                   >
-                    {soldOut ? "품절" : free ? "무료" : `💎 ${formatCurrency(p.price)}`}
+                    {soldOut ? (
+                      "품절"
+                    ) : free ? (
+                      "무료"
+                    ) : (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <CurrencyMark size={14} />
+                        {formatCurrency(p.price)}
+                      </span>
+                    )}
                   </div>
                 </div>
               </Link>

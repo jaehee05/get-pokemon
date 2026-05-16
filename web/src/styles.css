@@ -136,6 +136,15 @@ main {
     #1a2032;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
 }
+.brand-logo {
+  height: 36px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+}
+@media (max-width: 600px) {
+  .brand-logo { height: 28px; }
+}
 .topbar nav { display: flex; gap: 4px; flex: 1; }
 .topbar nav a {
   color: var(--muted);
@@ -163,6 +172,19 @@ main {
   border-radius: var(--r-pill);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+}
+
+.c-mark {
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ffe170, #f5b800);
+  color: #1a1a1a;
+  font-weight: 900;
+  letter-spacing: 0;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35), 0 1px 0 rgba(0,0,0,0.2);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  flex-shrink: 0;
 }
 .balance-pill.flash { animation: balance-flash 0.6s ease; }
 @keyframes balance-flash {

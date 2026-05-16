@@ -14,6 +14,7 @@ import {
   Rarity,
   formatCardNumber,
 } from "../types";
+import { CurrencyMark } from "../CurrencyMark";
 import { formatCurrency, useProfile } from "../useProfile";
 
 /** 카드 앞면 — 이미지 로드 실패 시 placeholder 로 자동 폴백. */
@@ -212,13 +213,20 @@ export default function PackOpen() {
       <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap" }}>
         <div>
           <h1 className="h1" style={{ marginBottom: 4 }}>{pack.name}</h1>
-          <p className="muted" style={{ marginTop: 0 }}>
-            {pack.cardCount}장 · 가격 {free ? "무료" : `💎 ${formatCurrency(price)}`}
+          <p className="muted" style={{ marginTop: 0, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span>{pack.cardCount}장 · 가격</span>
+            {free ? (
+              <b>무료</b>
+            ) : (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <CurrencyMark size={14} /> {formatCurrency(price)}
+              </span>
+            )}
           </p>
         </div>
         <div className="col" style={{ alignItems: "flex-end", gap: 6 }}>
           <span className="balance-pill">
-            <span>💎</span>
+            <CurrencyMark size={16} />
             <b>{formatCurrency(balance)}</b>
           </span>
         </div>
@@ -293,8 +301,8 @@ export default function PackOpen() {
                       >
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1.2 }}>
                           <span style={{ fontSize: 15, fontWeight: 800 }}>{n}팩</span>
-                          <span style={{ fontSize: 11, opacity: 0.85 }}>
-                            {free ? "무료" : `💎 ${formatCurrency(cost)}`}
+                          <span style={{ fontSize: 11, opacity: 0.85, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                            {free ? "무료" : <><CurrencyMark size={11} />{formatCurrency(cost)}</>}
                           </span>
                         </div>
                       </button>

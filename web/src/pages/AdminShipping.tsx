@@ -142,7 +142,7 @@ export default function AdminShipping() {
             {savingFee ? "저장 중..." : "저장"}
           </button>
           <span className="muted" style={{ fontSize: 12 }}>
-            현재 설정값: {fee === null ? "..." : fee === 0 ? "무료" : `💎 ${fee.toLocaleString()}`}
+            현재 설정값: {fee === null ? "..." : fee === 0 ? "무료" : `${fee.toLocaleString()} C`}
           </span>
         </div>
       </div>
@@ -209,7 +209,7 @@ export default function AdminShipping() {
                       </span>
                       <span style={{ fontWeight: 700 }}>{r.recipientName}</span>
                       <span className="muted" style={{ fontSize: 12 }}>
-                        {r.cardCount}장 · 💎 {r.fee.toLocaleString()}
+                        {r.cardCount}장 · {r.fee.toLocaleString()} C
                       </span>
                       <span className="muted" style={{ fontSize: 12 }}>
                         {r.createdAt?.toDate().toLocaleString("ko-KR") ?? ""}

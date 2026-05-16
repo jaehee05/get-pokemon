@@ -4,7 +4,7 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { CallableOptions, HttpsError, onCall } from "firebase-functions/v2/https";
 import { logger, setGlobalOptions } from "firebase-functions/v2";
 import { openPacks as runGacha } from "./gacha";
-import { Card, Pack } from "./types";
+import { ALL_RARITIES, Card, Pack, Rarity } from "./types";
 
 initializeApp();
 setGlobalOptions({ region: "asia-northeast3", maxInstances: 10 });
@@ -549,6 +549,130 @@ export const adminClearInventory = onCall<{
   logger.info("admin inventory clear", { actor: uid, targetUid, removed, all: !cardIds });
   return { ok: true, removed };
 });
+
+/* =============== Decompose =============== */
+
+type DecomposeValues = Partial<Record<Rarity, number>>;
+
+/** 등급별 분해 가치. 누구나 호출. 미설정 등급은 0. */
+export const getDecomposeConfig = onCall(callable, async () => {
+  const snap = await db.collection("config").doc("decompose").get();
+  const data = snap.data() as { values?: DecomposeValues } | undefined;
+  const values: Record<Rarity, number> = {} as Record<Rarity, number>;
+  for (const r of ALL_RARITIES) values[r] = data?.values?.[r] ?? 0;
+  return { values };
+});
+
+/** 등급별 분해 가치 설정. 관리자 전용. */
+export const setDecomposeConfig = onCall<{ values?: DecomposeValues }>(
+  callable,
+  async (request) => {
+    const uid = request.auth?.uid;
+    requireAuth(uid);
+    await requireAdmin(uid);
+    const sanitized: DecomposeValues = {};
+    for (const r of ALL_RARITIES) {
+      const v = request.data.values?.[r];
+      sanitized[r] = Math.max(0, Math.floor(Number(v) || 0));
+    }
+    await db.collection("config").doc("decompose").set(
+      { values: sanitized },
+      { merge: true }
+    );
+    return { ok: true, values: sanitized };
+  }
+);
+
+/**
+ * 카드 분해. 각 카드의 수량만큼 인벤토리에서 차감, 등급별 가치 × 수량을 캐시로 환급.
+ */
+export const decomposeCards = onCall<{ items?: Array<{ cardId: string; qty: number }> }>(
+  callable,
+  async (request) => {
+    const uid = request.auth?.uid;
+    requireAuth(uid);
+    const items = request.data.items;
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new HttpsError("invalid-argument", "분해할 카드를 선택해주세요.");
+    }
+    if (items.length > 500) {
+      throw new HttpsError("invalid-argument", "한 번에 500개 이하만 처리 가능합니다.");
+    }
+    for (const it of items) {
+      if (!it.cardId || typeof it.cardId !== "string") {
+        throw new HttpsError("invalid-argument", "잘못된 cardId");
+      }
+      if (!Number.isFinite(it.qty) || it.qty < 1 || !Number.isInteger(it.qty)) {
+        throw new HttpsError("invalid-argument", "qty 는 1 이상 정수여야 합니다.");
+      }
+    }
+
+    // 분해 값 + 카드 로드
+    const [cfgSnap, ...cardDocs] = await Promise.all([
+      db.collection("config").doc("decompose").get(),
+      ...items.map((it) => db.collection("cards").doc(it.cardId).get()),
+    ]);
+    const cfg = cfgSnap.data() as { values?: DecomposeValues } | undefined;
+    const values: Record<Rarity, number> = {} as Record<Rarity, number>;
+    for (const r of ALL_RARITIES) values[r] = cfg?.values?.[r] ?? 0;
+
+    const cardRarities = cardDocs.map((d, i) => {
+      if (!d.exists) {
+        throw new HttpsError("not-found", `카드 ${items[i].cardId} 없음`);
+      }
+      const data = d.data() as Card;
+      return data.rarity;
+    });
+
+    let totalCash = 0;
+    for (let i = 0; i < items.length; i++) {
+      totalCash += (values[cardRarities[i]] ?? 0) * items[i].qty;
+    }
+
+    const userRef = db.collection("users").doc(uid);
+    const invRefs = items.map((it) => userRef.collection("inventory").doc(it.cardId));
+
+    await db.runTransaction(async (tx) => {
+      const userDoc = await tx.get(userRef);
+      const invDocs = await Promise.all(invRefs.map((r) => tx.get(r)));
+
+      // 보유 수량 검증
+      for (let i = 0; i < items.length; i++) {
+        const cur = (invDocs[i].data()?.count as number | undefined) ?? 0;
+        if (!invDocs[i].exists || cur < items[i].qty) {
+          throw new HttpsError(
+            "failed-precondition",
+            `보유 수량 부족: card ${items[i].cardId} (필요 ${items[i].qty}, 보유 ${cur})`
+          );
+        }
+      }
+
+      // === writes ===
+      // 캐시 증가 (유저 doc 없을 수 있음)
+      if (!userDoc.exists) {
+        tx.set(userRef, {
+          displayName: request.auth?.token.name ?? "Trainer",
+          currency: totalCash,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      } else {
+        tx.update(userRef, { currency: FieldValue.increment(totalCash) });
+      }
+
+      // 인벤토리 차감
+      for (let i = 0; i < items.length; i++) {
+        const ref = invRefs[i];
+        const cur = (invDocs[i].data()?.count as number | undefined) ?? 0;
+        const next = cur - items[i].qty;
+        if (next <= 0) tx.delete(ref);
+        else tx.update(ref, { count: next });
+      }
+    });
+
+    logger.info("cards decomposed", { uid, items: items.length, totalCash });
+    return { ok: true, gained: totalCash };
+  }
+);
 
 /* =============== Shipping =============== */
 

@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { SafeImage } from "../SafeImage";
 import { useAuth } from "../auth";
 import { db } from "../firebase";
+import { CurrencyMark } from "../CurrencyMark";
+import { DecomposeDialog } from "./DecomposeDialog";
 import { ShippingDialog } from "./ShippingDialog";
 import {
   ALL_RARITIES,
@@ -30,9 +32,10 @@ export default function Inventory() {
   // 빈 set = 등급 필터 없음 (전체 표시). 1개 이상 선택 시 해당 등급만.
   const [rarityFilter, setRarityFilter] = useState<Set<Rarity>>(new Set());
   const [search, setSearch] = useState("");
-  const [selectMode, setSelectMode] = useState(false);
+  const [selectMode, setSelectMode] = useState<null | "shipping" | "decompose">(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [shippingOpen, setShippingOpen] = useState(false);
+  const [decomposeOpen, setDecomposeOpen] = useState(false);
 
   const [totalCatalog, setTotalCatalog] = useState(0);
 
@@ -135,7 +138,7 @@ export default function Inventory() {
     });
   }
   function exitSelectMode() {
-    setSelectMode(false);
+    setSelectMode(null);
     setSelected(new Set());
   }
 
@@ -161,18 +164,33 @@ export default function Inventory() {
           </p>
         </div>
         <div className="row" style={{ gap: 8 }}>
-          <span className="balance-pill"><span>💎</span><b>{formatCurrency(profile?.currency ?? 0)}</b></span>
+          <span className="balance-pill"><CurrencyMark size={16} /><b>{formatCurrency(profile?.currency ?? 0)}</b></span>
           {!selectMode ? (
-            <button onClick={() => setSelectMode(true)} disabled={rows.length === 0}>
-              📦 배송 신청
-            </button>
-          ) : (
             <>
               <button
-                disabled={selected.size === 0}
-                onClick={() => setShippingOpen(true)}
+                className="secondary"
+                onClick={() => setSelectMode("shipping")}
+                disabled={rows.length === 0}
               >
-                다음 ({selected.size}장)
+                📦 배송
+              </button>
+              <button onClick={() => setSelectMode("decompose")} disabled={rows.length === 0}>
+                ♻️ 분해
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="muted" style={{ fontSize: 12 }}>
+                {selectMode === "shipping" ? "배송 신청 · 카드 선택" : "분해 · 카드 선택"}
+              </span>
+              <button
+                disabled={selected.size === 0}
+                onClick={() => {
+                  if (selectMode === "shipping") setShippingOpen(true);
+                  else setDecomposeOpen(true);
+                }}
+              >
+                다음 ({selected.size}종)
               </button>
               <button className="ghost" onClick={exitSelectMode}>
                 취소
@@ -385,6 +403,27 @@ export default function Inventory() {
             setShippingOpen(false);
             exitSelectMode();
             alert("배송 신청이 접수되었습니다. 관리자가 처리 후 발송합니다.");
+          }}
+        />
+      )}
+
+      {decomposeOpen && (
+        <DecomposeDialog
+          selected={Array.from(selected)
+            .map((id): { cardId: string; card: Card; exp?: Expansion; ownedCount: number } | null => {
+              const row = rows.find((r) => r.cardId === id);
+              if (!row?.card) return null;
+              const exp = row.card.expansionId ? expById.get(row.card.expansionId) : undefined;
+              return { cardId: id, card: row.card, exp, ownedCount: row.count };
+            })
+            .filter(
+              (x): x is { cardId: string; card: Card; exp?: Expansion; ownedCount: number } =>
+                x !== null
+            )}
+          onClose={() => setDecomposeOpen(false)}
+          onDone={() => {
+            setDecomposeOpen(false);
+            exitSelectMode();
           }}
         />
       )}

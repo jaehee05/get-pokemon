@@ -7,6 +7,7 @@ import {
   Expansion,
   RARITY_COLOR,
 } from "../types";
+import { CurrencyMark } from "../CurrencyMark";
 import { formatCurrency, UserProfile } from "../useProfile";
 
 interface SelectedCard {
@@ -185,8 +186,8 @@ export function ShippingDialog({
           </div>
           <div className="row" style={{ justifyContent: "space-between" }}>
             <span className="muted">배송비</span>
-            <span style={{ fontWeight: 700 }}>
-              {fee === null ? "..." : fee === 0 ? "무료" : `💎 ${formatCurrency(fee)}`}
+            <span style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
+              {fee === null ? "..." : fee === 0 ? "무료" : <><CurrencyMark size={13} />{formatCurrency(fee)}</>}
             </span>
           </div>
           <div className="row" style={{ justifyContent: "space-between" }}>
@@ -195,9 +196,13 @@ export function ShippingDialog({
               style={{
                 fontWeight: 700,
                 color: !canAfford ? "var(--danger)" : "var(--text)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
               }}
             >
-              💎 {formatCurrency(balance - (fee ?? 0))}
+              <CurrencyMark size={13} />
+              {formatCurrency(balance - (fee ?? 0))}
             </span>
           </div>
         </div>

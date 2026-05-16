@@ -1,5 +1,6 @@
 import { Link, Route, Routes, useLocation } from "react-router-dom";
 import AdminCards from "./AdminCards";
+import AdminDecompose from "./AdminDecompose";
 import AdminExpansions from "./AdminExpansions";
 import AdminPacks from "./AdminPacks";
 import AdminShipping from "./AdminShipping";
@@ -20,6 +21,7 @@ const SECTIONS: SectionDef[] = [
   { to: "/admin/packs", icon: "🎴", title: "팩", desc: "슬롯별 등급 가중치 + 카드풀" },
   { to: "/admin/users", icon: "👥", title: "유저", desc: "캐시 지급 · 컬렉션 편집 · 삭제" },
   { to: "/admin/shipping", icon: "🚚", title: "배송", desc: "배송비 설정 · 신청 목록 · 상태 변경" },
+  { to: "/admin/decompose", icon: "♻️", title: "분해", desc: "등급별 분해 가치 (C) 설정" },
 ];
 
 function AdminLanding() {
@@ -91,6 +93,7 @@ export default function Admin() {
         <Route path="packs" element={<AdminPacks />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="shipping" element={<AdminShipping />} />
+        <Route path="decompose" element={<AdminDecompose />} />
       </Routes>
     </div>
   );

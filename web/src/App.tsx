@@ -8,6 +8,7 @@ import Admin from "./pages/Admin";
 import Home from "./pages/Home";
 import Inventory from "./pages/Inventory";
 import PackOpen from "./pages/PackOpen";
+import { CurrencyMark } from "./CurrencyMark";
 import { formatCurrency, useProfile } from "./useProfile";
 
 export default function App() {
@@ -72,9 +73,12 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <Link to="/" className="brand">
-          <span className="brand-mark">🎴</span>
-          <span>Pokémon 카드 뽑기</span>
+        <Link to="/" className="brand" aria-label="Pokémon 카드 뽑기">
+          <img
+            src="https://pokemoncard.co.kr/v3/img/card_main_logo.png"
+            alt="Pokémon 카드 뽑기"
+            className="brand-logo"
+          />
         </Link>
         <nav>
           <Link to="/">팩</Link>
@@ -85,7 +89,7 @@ export default function App() {
           {user ? (
             <>
               <div className="balance-pill" title="보유 캐시">
-                <span style={{ fontSize: 14 }}>💎</span>
+                <CurrencyMark size={16} />
                 <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>
                   {formatCurrency(profile?.currency ?? 0)}
                 </span>
