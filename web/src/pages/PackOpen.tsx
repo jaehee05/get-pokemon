@@ -362,13 +362,34 @@ export default function PackOpen() {
       {stage === "revealed" && result && (
         <>
           {maxTier >= 3 && <div className="hit-flash" />}
-          {result.count > 1 && (
-            <div className="row" style={{ justifyContent: "center", marginTop: 8 }}>
+          <div
+            className="reveal-actions"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 10,
+              marginTop: 4,
+            }}
+          >
+            {result.count > 1 && (
               <span className="balance-pill" style={{ fontSize: 13 }}>
                 {result.count}팩 결과 · 총 {allResultCards.length}장
               </span>
+            )}
+            <div className="row" style={{ justifyContent: "center" }}>
+              <button
+                onClick={allRevealed ? () => nav(-1) : revealAll}
+                className={allRevealed ? "" : "secondary"}
+                disabled={resetting}
+              >
+                {allRevealed ? "이전으로" : "전부 공개"}
+              </button>
+              <button onClick={againOrRevealFirst} disabled={resetting}>
+                {resetting ? "공개 중..." : "한 번 더"}
+              </button>
             </div>
-          )}
+          </div>
           <div className="reveal-wrap">
             <div className="reveal">
               {allResultCards.map((card, i) => {
@@ -427,23 +448,6 @@ export default function PackOpen() {
                   </div>
                 );
               })}
-            </div>
-          </div>
-          <div
-            className="col"
-            style={{ alignItems: "center", marginTop: 20, gap: 8 }}
-          >
-            <div className="row" style={{ justifyContent: "center" }}>
-              <button
-                onClick={allRevealed ? () => nav(-1) : revealAll}
-                className={allRevealed ? "" : "secondary"}
-                disabled={resetting}
-              >
-                {allRevealed ? "이전으로" : "전부 공개"}
-              </button>
-              <button onClick={againOrRevealFirst} disabled={resetting}>
-                {resetting ? "공개 중..." : "한 번 더"}
-              </button>
             </div>
           </div>
         </>

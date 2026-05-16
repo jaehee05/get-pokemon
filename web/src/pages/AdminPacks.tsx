@@ -298,7 +298,40 @@ function PackEditor({
         style={{ width: "min(900px, 100%)", maxHeight: "90vh", overflow: "auto" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="h2">팩 편집</h2>
+        <div
+          className="row"
+          style={{
+            justifyContent: "space-between",
+            alignItems: "center",
+            position: "sticky",
+            top: -18,
+            background: "linear-gradient(180deg, var(--panel) 80%, transparent)",
+            padding: "12px 0 8px",
+            margin: "-18px 0 8px",
+            zIndex: 5,
+          }}
+        >
+          <h2 className="h2" style={{ margin: 0 }}>팩 편집</h2>
+          <div className="row" style={{ gap: 8 }}>
+            <button className="ghost" onClick={onClose}>취소</button>
+            <button
+              onClick={() =>
+                onSave({
+                  name,
+                  imageUrl,
+                  cardBackImageUrl,
+                  cardCount,
+                  price,
+                  isActive,
+                  slots,
+                  cardPool: pool,
+                })
+              }
+            >
+              저장
+            </button>
+          </div>
+        </div>
         {legacyDetected && (
           <div
             style={{
@@ -516,25 +549,6 @@ function PackEditor({
           )}
         </div>
 
-        <div className="row" style={{ marginTop: 16, justifyContent: "flex-end" }}>
-          <button className="secondary" onClick={onClose}>취소</button>
-          <button
-            onClick={() =>
-              onSave({
-                name,
-                imageUrl,
-                cardBackImageUrl,
-                cardCount,
-                price,
-                isActive,
-                slots,
-                cardPool: pool,
-              })
-            }
-          >
-            저장
-          </button>
-        </div>
       </div>
     </div>
   );
