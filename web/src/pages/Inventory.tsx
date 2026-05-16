@@ -57,6 +57,24 @@ export default function Inventory() {
     });
   }, []);
 
+  // 스크롤 중에는 보유 수량 배지 숨김 → 멈추고 잠깐 뒤 다시 표시
+  useEffect(() => {
+    let timer: number | undefined;
+    function onScroll() {
+      document.body.classList.add("is-scrolling");
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        document.body.classList.remove("is-scrolling");
+      }, 250);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (timer !== undefined) window.clearTimeout(timer);
+      document.body.classList.remove("is-scrolling");
+    };
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     const ref = collection(db, "users", user.uid, "inventory");

@@ -366,6 +366,14 @@ label {
   border: 1px solid rgba(255, 210, 51, 0.3);
   font-variant-numeric: tabular-nums;
   z-index: 2;
+  /* 표시: 스크롤 멈춘 후 약간 늦게 페이드인 */
+  opacity: 1;
+  transition: opacity 0.25s ease 0.12s;
+}
+body.is-scrolling .owned-count {
+  opacity: 0;
+  /* 사라짐은 빠르게 */
+  transition: opacity 0.12s ease 0s;
 }
 
 /* ================ */
