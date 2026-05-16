@@ -116,28 +116,40 @@ export default function AdminDecompose() {
       </div>
 
       <div className="panel">
-        <h2 className="h2" style={{ marginTop: 0 }}>참고 — 추천 시작값</h2>
+        <h2 className="h2" style={{ marginTop: 0 }}>추천 시세 (1 C = 1 원)</h2>
         <p className="muted" style={{ fontSize: 12 }}>
-          참고용 가이드라인. 게임 밸런스에 맞게 자유롭게 조정하세요.
+          국내 포켓몬 카드 시장의 일반적인 시세를 참고한 추천값. 등급 내에서도 카드별 편차가 크니
+          시장 가격의 절반 ~ 70% 정도로 잡는 게 무난합니다. 실제 운영에 맞춰 자유롭게 조정하세요.
         </p>
         <table>
           <thead>
-            <tr><th>등급</th><th style={{ textAlign: "right" }}>추천값</th></tr>
+            <tr>
+              <th>등급</th>
+              <th>이름</th>
+              <th style={{ textAlign: "right" }}>시세 (원)</th>
+              <th style={{ textAlign: "right" }}>추천 분해값</th>
+            </tr>
           </thead>
           <tbody>
-            <tr><td>C</td><td style={{ textAlign: "right" }}>5</td></tr>
-            <tr><td>U</td><td style={{ textAlign: "right" }}>10</td></tr>
-            <tr><td>R</td><td style={{ textAlign: "right" }}>30</td></tr>
-            <tr><td>RR</td><td style={{ textAlign: "right" }}>80</td></tr>
-            <tr><td>SR</td><td style={{ textAlign: "right" }}>200</td></tr>
-            <tr><td>AR</td><td style={{ textAlign: "right" }}>250</td></tr>
-            <tr><td>SAR</td><td style={{ textAlign: "right" }}>400</td></tr>
-            <tr><td>UR</td><td style={{ textAlign: "right" }}>600</td></tr>
-            <tr><td>ACE</td><td style={{ textAlign: "right" }}>700</td></tr>
-            <tr><td>S / SSR / BWR</td><td style={{ textAlign: "right" }}>800 – 1,200</td></tr>
-            <tr><td>MUR / MA</td><td style={{ textAlign: "right" }}>1,500 – 2,500</td></tr>
+            <tr><td>C</td>  <td>커먼</td>          <td style={{ textAlign: "right" }}>100 – 300</td>       <td style={{ textAlign: "right" }}>100</td></tr>
+            <tr><td>U</td>  <td>언커먼</td>        <td style={{ textAlign: "right" }}>300 – 800</td>       <td style={{ textAlign: "right" }}>300</td></tr>
+            <tr><td>R</td>  <td>레어</td>          <td style={{ textAlign: "right" }}>1,000 – 3,000</td>   <td style={{ textAlign: "right" }}>1,000</td></tr>
+            <tr><td>RR</td> <td>더블레어</td>      <td style={{ textAlign: "right" }}>5,000 – 15,000</td>  <td style={{ textAlign: "right" }}>3,000</td></tr>
+            <tr><td>SR</td> <td>슈퍼레어</td>      <td style={{ textAlign: "right" }}>20,000 – 50,000</td> <td style={{ textAlign: "right" }}>15,000</td></tr>
+            <tr><td>AR</td> <td>아트레어</td>      <td style={{ textAlign: "right" }}>30,000 – 80,000</td> <td style={{ textAlign: "right" }}>30,000</td></tr>
+            <tr><td>SAR</td><td>스페셜아트</td>    <td style={{ textAlign: "right" }}>80,000 – 200,000</td><td style={{ textAlign: "right" }}>80,000</td></tr>
+            <tr><td>UR</td> <td>울트라레어</td>    <td style={{ textAlign: "right" }}>100,000 – 300,000</td><td style={{ textAlign: "right" }}>100,000</td></tr>
+            <tr><td>ACE</td><td>에이스</td>        <td style={{ textAlign: "right" }}>50,000 – 200,000</td><td style={{ textAlign: "right" }}>70,000</td></tr>
+            <tr><td>S</td>  <td>샤이니</td>        <td style={{ textAlign: "right" }}>30,000 – 150,000</td><td style={{ textAlign: "right" }}>50,000</td></tr>
+            <tr><td>SSR</td><td>스페셜슈퍼레어</td><td style={{ textAlign: "right" }}>150,000 – 500,000</td><td style={{ textAlign: "right" }}>200,000</td></tr>
+            <tr><td>BWR</td><td>흑백레어</td>      <td style={{ textAlign: "right" }}>80,000 – 300,000</td><td style={{ textAlign: "right" }}>120,000</td></tr>
+            <tr><td>MUR</td><td>마스터울트라</td>  <td style={{ textAlign: "right" }}>300,000 – 1,000,000</td><td style={{ textAlign: "right" }}>500,000</td></tr>
+            <tr><td>MA</td> <td>마스터</td>        <td style={{ textAlign: "right" }}>800,000 ~</td>       <td style={{ textAlign: "right" }}>1,000,000</td></tr>
           </tbody>
         </table>
+        <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>
+          ⚠️ 시세는 시점/카드/상태에 따라 크게 변동합니다. 위 표는 평균치 기준의 대략적인 가이드.
+        </p>
       </div>
     </div>
   );
