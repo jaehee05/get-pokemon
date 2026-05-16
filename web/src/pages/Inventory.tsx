@@ -355,7 +355,7 @@ export default function Inventory() {
                     fallback={<span className="muted">No image</span>}
                   />
                   {r.count > 1 && (
-                    <span className="owned-count">보유 {r.count}</span>
+                    <span className="owned-count">×{r.count}</span>
                   )}
                   {selectMode && (
                     <span

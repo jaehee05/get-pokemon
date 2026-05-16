@@ -354,14 +354,17 @@ label {
 .owned-count {
   position: absolute;
   top: 6px; right: 6px;
-  background: linear-gradient(135deg, #ffe170, #f5b800);
-  color: #1a1a1a;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--accent);
   padding: 2px 9px;
   border-radius: var(--r-pill);
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: -0.005em;
-  box-shadow: 0 2px 8px -2px rgba(245, 184, 0, 0.5), inset 0 0 0 1px rgba(255,255,255,0.35);
+  letter-spacing: 0;
+  border: 1px solid rgba(255, 210, 51, 0.3);
+  font-variant-numeric: tabular-nums;
   z-index: 2;
 }
 
