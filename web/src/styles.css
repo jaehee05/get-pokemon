@@ -1021,3 +1021,14 @@ a.admin-nav-link.active {
 @media (max-width: 380px) {
   .balance-pill .charge-plus { display: none; }
 }
+
+/* 좁은 화면에서 SOLD OUT 스탬프가 썸네일보다 넓어지지 않도록 축소 */
+@media (max-width: 600px) {
+  .sold-out-stamp {
+    min-width: 84px;
+    padding: 10px 14px;
+    max-width: 90%;
+  }
+  .sold-out-stamp .ko { font-size: 15px; letter-spacing: 0.06em; }
+  .sold-out-stamp .en { font-size: 8px; letter-spacing: 0.24em; }
+}
