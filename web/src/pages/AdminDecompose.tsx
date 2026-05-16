@@ -54,7 +54,8 @@ export default function AdminDecompose() {
       <div className="panel">
         <h2 className="h2" style={{ marginTop: 0 }}>등급별 분해 가치</h2>
         <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-          유저가 카드 1장을 분해할 때 얻는 캐시 (C). 등급별로 다르게 설정 가능합니다.
+          유저가 카드 1장을 분해할 때 얻는 캐시 (C). <b>1 C = 1 원</b> 기준입니다.
+          분해된 카드 수량은 자동으로 풀 재고에 회수됩니다.
         </p>
 
         <div

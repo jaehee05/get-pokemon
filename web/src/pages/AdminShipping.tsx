@@ -127,9 +127,12 @@ export default function AdminShipping() {
       {/* 배송비 설정 */}
       <div className="panel">
         <h2 className="h2" style={{ marginTop: 0 }}>배송비 설정</h2>
+        <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+          1 C = 1 원. 실 배송비를 그대로 입력하면 됩니다.
+        </p>
         <div className="row" style={{ gap: 10 }}>
           <label>
-            배송비 (캐시)
+            배송비 (C)
             <input
               type="number"
               min={0}

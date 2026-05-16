@@ -667,6 +667,12 @@ export const decomposeCards = onCall<{ items?: Array<{ cardId: string; qty: numb
         if (next <= 0) tx.delete(ref);
         else tx.update(ref, { count: next });
       }
+
+      // 카드 재고 환원 — 분해된 수량만큼 다시 풀로 돌아감
+      for (const it of items) {
+        const cardRef = db.collection("cards").doc(it.cardId);
+        tx.update(cardRef, { stock: FieldValue.increment(it.qty) });
+      }
     });
 
     logger.info("cards decomposed", { uid, items: items.length, totalCash });
