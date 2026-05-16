@@ -1,16 +1,18 @@
 import { httpsCallable } from "firebase/functions";
-import { useEffect, useState } from "react";
-import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Suspense, lazy, useEffect, useState } from "react";
+import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AuthDialog } from "./AuthDialog";
+import { CurrencyMark } from "./CurrencyMark";
 import { useAuth } from "./auth";
 import { functions } from "./firebase";
-import Admin from "./pages/Admin";
-import Home from "./pages/Home";
-import Inventory from "./pages/Inventory";
-import PackOpen from "./pages/PackOpen";
-import { CurrencyMark } from "./CurrencyMark";
 import { ChargeDialog } from "./pages/ChargeDialog";
+import Home from "./pages/Home";
 import { formatCurrency, useProfile } from "./useProfile";
+
+// 무거운 페이지(인증 후/관리자만 사용)는 lazy 로드해서 초기 번들 축소
+const PackOpen = lazy(() => import("./pages/PackOpen"));
+const Inventory = lazy(() => import("./pages/Inventory"));
+const Admin = lazy(() => import("./pages/Admin"));
 
 export default function App() {
   const { user, isAdmin, loading, signOutNow, refreshClaims } = useAuth();
@@ -19,7 +21,6 @@ export default function App() {
   const [authOpen, setAuthOpen] = useState(false);
   const [chargeOpen, setChargeOpen] = useState(false);
   const [claiming, setClaiming] = useState(false);
-  // null = 모르는 상태(체크 중), true = admin 존재, false = 아직 없음
   const [systemHasAdmin, setSystemHasAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -28,14 +29,12 @@ export default function App() {
       .catch(() => setSystemHasAdmin(null));
   }, [user]);
 
-  // 숫자 input 에 포커스가 들어올 때 자동 전체 선택 — 0 부터 시작해서
-  // 매번 지워야 하는 불편함 제거.
+  // 숫자 input 포커스 시 전체 선택
   useEffect(() => {
     function onFocusIn(e: FocusEvent) {
       const t = e.target as HTMLElement | null;
       if (!t) return;
       if (t.tagName === "INPUT" && (t as HTMLInputElement).type === "number") {
-        // requestAnimationFrame 한 번 — Safari/Chrome 모두 안정적으로 동작
         requestAnimationFrame(() => {
           try { (t as HTMLInputElement).select(); } catch { /* ignore */ }
         });
@@ -82,10 +81,10 @@ export default function App() {
             className="brand-logo"
           />
         </Link>
-        <nav>
-          <Link to="/">팩</Link>
-          {user && <Link to="/inventory">내 컬렉션</Link>}
-          {isAdmin && <Link to="/admin">관리자</Link>}
+        <nav className="top-nav">
+          <NavLink to="/" end>팩</NavLink>
+          {user && <NavLink to="/inventory">내 컬렉션</NavLink>}
+          {isAdmin && <NavLink to="/admin">관리자</NavLink>}
         </nav>
         <div className="auth">
           {user ? (
@@ -94,15 +93,15 @@ export default function App() {
                 className="balance-pill"
                 title="클릭하여 충전"
                 onClick={() => setChargeOpen(true)}
-                style={{ cursor: "pointer", border: "1px solid rgba(255,210,51,0.4)" }}
+                style={{ cursor: "pointer" }}
               >
                 <CurrencyMark size={16} />
                 <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>
                   {formatCurrency(profile?.currency ?? 0)}
                 </span>
-                <span style={{ marginLeft: 4, color: "var(--accent)", fontWeight: 800 }}>+</span>
+                <span className="charge-plus">+</span>
               </button>
-              <span className="muted" style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span className="topbar-name">
                 {user.displayName || user.email || "Trainer"}
               </span>
               {showClaimButton && (
@@ -116,31 +115,53 @@ export default function App() {
                   {claiming ? "확인 중..." : "Admin 받기"}
                 </button>
               )}
-              <button className="secondary" onClick={signOutNow}>로그아웃</button>
+              <button className="secondary topbar-logout" onClick={signOutNow}>로그아웃</button>
             </>
           ) : (
-            <button onClick={() => setAuthOpen(true)}>로그인 / 회원가입</button>
+            <button onClick={() => setAuthOpen(true)}>로그인</button>
           )}
         </div>
       </header>
 
       <main>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route
-            path="/pack/:packId"
-            element={user ? <PackOpen /> : <Navigate to="/" state={{ from: location }} replace />}
-          />
-          <Route
-            path="/inventory"
-            element={user ? <Inventory /> : <Navigate to="/" replace />}
-          />
-          <Route
-            path="/admin/*"
-            element={isAdmin ? <Admin /> : <Navigate to="/" replace />}
-          />
-        </Routes>
+        <Suspense fallback={<div className="center">로딩...</div>}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route
+              path="/pack/:packId"
+              element={user ? <PackOpen /> : <Navigate to="/" state={{ from: location }} replace />}
+            />
+            <Route
+              path="/inventory"
+              element={user ? <Inventory /> : <Navigate to="/" replace />}
+            />
+            <Route
+              path="/admin/*"
+              element={isAdmin ? <Admin /> : <Navigate to="/" replace />}
+            />
+          </Routes>
+        </Suspense>
       </main>
+
+      {/* 모바일용 bottom 탭 — < 600px 에서만 표시 */}
+      <nav className="bottom-nav">
+        <NavLink to="/" end className="bn-item">
+          <span className="bn-icon">🎴</span>
+          <span>팩</span>
+        </NavLink>
+        {user && (
+          <NavLink to="/inventory" className="bn-item">
+            <span className="bn-icon">📚</span>
+            <span>컬렉션</span>
+          </NavLink>
+        )}
+        {isAdmin && (
+          <NavLink to="/admin" className="bn-item">
+            <span className="bn-icon">⚙️</span>
+            <span>관리자</span>
+          </NavLink>
+        )}
+      </nav>
 
       {authOpen && <AuthDialog onClose={() => setAuthOpen(false)} />}
       {chargeOpen && user && <ChargeDialog onClose={() => setChargeOpen(false)} />}
