@@ -355,22 +355,7 @@ export default function Inventory() {
                     fallback={<span className="muted">No image</span>}
                   />
                   {r.count > 1 && (
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: 6, right: 6,
-                        background: "rgba(0,0,0,0.7)",
-                        backdropFilter: "blur(4px)",
-                        color: "#fff",
-                        padding: "2px 8px",
-                        borderRadius: 999,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        border: "1px solid rgba(255,255,255,0.15)",
-                      }}
-                    >
-                      ×{r.count}
-                    </span>
+                    <span className="owned-count">보유 {r.count}</span>
                   )}
                   {selectMode && (
                     <span

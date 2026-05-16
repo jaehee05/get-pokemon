@@ -111,7 +111,6 @@ export default function Home() {
                     alt={p.name}
                     fallback={<span className="pack-icon">📦</span>}
                   />
-                  <span className="badge">{p.cardCount}장</span>
                   {soldOut ? (
                     <div className="sold-out-stamp">
                       <span className="ko">품절</span>
@@ -148,8 +147,11 @@ export default function Home() {
                     </>
                   )}
                 </div>
-                <div className="row" style={{ justifyContent: "space-between" }}>
-                  <div className="name">{p.name}</div>
+                <div className="name">{p.name}</div>
+                <div className="row" style={{ justifyContent: "space-between", gap: 6 }}>
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    팩당 {p.cardCount}장
+                  </span>
                   <div
                     style={{
                       fontWeight: 700,
