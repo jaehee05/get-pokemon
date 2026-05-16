@@ -51,13 +51,6 @@ export default function Home() {
         )}
       </section>
 
-      {!user && (
-        <div className="empty" style={{ marginBottom: 16 }}>
-          <div className="icon">🔐</div>
-          팩을 열려면 우측 상단에서 로그인 또는 회원가입을 해주세요.
-        </div>
-      )}
-
       <div className="page-head">
         <div>
           <h2 className="page-title" style={{ fontSize: 22 }}>팩 컬렉션</h2>
