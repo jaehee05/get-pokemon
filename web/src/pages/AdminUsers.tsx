@@ -7,6 +7,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { useEffect, useState } from "react";
 import { InventoryEditor } from "./InventoryEditor";
+import { useAuth } from "../auth";
 import { db, functions } from "../firebase";
 
 interface UserRow {
@@ -19,6 +20,7 @@ interface UserRow {
 }
 
 export default function AdminUsers() {
+  const { user: me } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [filter, setFilter] = useState("");
   const [busyUid, setBusyUid] = useState<string | null>(null);
@@ -43,6 +45,30 @@ export default function AdminUsers() {
         "grantCurrency"
       )({ targetUid: uid, amount });
       setPendingAmount((p) => ({ ...p, [uid]: 0 }));
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusyUid(null);
+    }
+  }
+
+  async function removeUser(u: UserRow) {
+    const label = u.displayName || u.email || u.uid;
+    if (!confirm(`'${label}' 유저를 삭제합니다. 이 유저의 인벤토리·뽑기 기록·계정이 모두 사라집니다. 진행할까요?`))
+      return;
+    if (!confirm("정말 삭제하시겠어요? 되돌릴 수 없습니다.")) return;
+    setBusyUid(u.uid);
+    try {
+      const r = await httpsCallable<
+        { targetUid: string; alsoAuth: boolean },
+        { ok: boolean; inventoryRemoved: number; pullsRemoved: number; authDeleted: boolean }
+      >(
+        functions,
+        "adminDeleteUser"
+      )({ targetUid: u.uid, alsoAuth: true });
+      alert(
+        `삭제 완료\n· 인벤토리 ${r.data.inventoryRemoved}건\n· 뽑기 기록 ${r.data.pullsRemoved}건\n· 인증 계정 ${r.data.authDeleted ? "삭제" : "유지(이미 없거나 실패)"}`
+      );
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : String(e));
     } finally {
@@ -88,6 +114,7 @@ export default function AdminUsers() {
               <th style={{ textAlign: "right" }}>잔액</th>
               <th>지급</th>
               <th>컬렉션</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -167,6 +194,16 @@ export default function AdminUsers() {
                       onClick={() => setEditingUid(u.uid)}
                     >
                       편집
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      className="danger"
+                      onClick={() => removeUser(u)}
+                      disabled={busyUid === u.uid || me?.uid === u.uid}
+                      title={me?.uid === u.uid ? "본인은 삭제할 수 없습니다" : "이 유저 완전 삭제"}
+                    >
+                      {busyUid === u.uid ? "..." : "삭제"}
                     </button>
                   </td>
                 </tr>

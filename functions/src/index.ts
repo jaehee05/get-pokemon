@@ -549,3 +549,80 @@ export const adminClearInventory = onCall<{
   logger.info("admin inventory clear", { actor: uid, targetUid, removed, all: !cardIds });
   return { ok: true, removed };
 });
+
+/**
+ * 유저 완전 삭제. Firestore: users/{uid} + inventory subcollection + pulls 기록.
+ * Auth: alsoAuth가 true (기본값) 이면 Firebase Auth 계정도 삭제.
+ * admin 본인을 삭제하는 건 안전을 위해 차단.
+ */
+export const adminDeleteUser = onCall<{
+  targetUid?: string;
+  alsoAuth?: boolean;
+}>(callable, async (request) => {
+  const uid = request.auth?.uid;
+  requireAuth(uid);
+  await requireAdmin(uid);
+  const { targetUid, alsoAuth = true } = request.data;
+  if (!targetUid) {
+    throw new HttpsError("invalid-argument", "targetUid 필요");
+  }
+  if (targetUid === uid) {
+    throw new HttpsError("failed-precondition", "본인 계정은 이 화면에서 삭제할 수 없습니다.");
+  }
+
+  // 1) inventory subcollection 전부 삭제
+  const invCol = db.collection("users").doc(targetUid).collection("inventory");
+  let inventoryRemoved = 0;
+  while (true) {
+    const snap = await invCol.limit(400).get();
+    if (snap.empty) break;
+    const batch = db.batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    inventoryRemoved += snap.size;
+    if (snap.size < 400) break;
+  }
+
+  // 2) pulls 기록 삭제 (이 유저의 것만)
+  let pullsRemoved = 0;
+  while (true) {
+    const snap = await db
+      .collection("pulls")
+      .where("uid", "==", targetUid)
+      .limit(400)
+      .get();
+    if (snap.empty) break;
+    const batch = db.batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    pullsRemoved += snap.size;
+    if (snap.size < 400) break;
+  }
+
+  // 3) user doc 삭제
+  await db.collection("users").doc(targetUid).delete();
+
+  // 4) Auth 계정 삭제 (요청 시)
+  let authDeleted = false;
+  if (alsoAuth) {
+    try {
+      await auth.deleteUser(targetUid);
+      authDeleted = true;
+    } catch (e) {
+      // 이미 삭제됐거나 계정이 없는 경우는 무시
+      logger.warn("adminDeleteUser: auth delete failed", {
+        targetUid,
+        msg: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  logger.info("admin user deleted", {
+    actor: uid,
+    targetUid,
+    inventoryRemoved,
+    pullsRemoved,
+    authDeleted,
+  });
+  return { ok: true, inventoryRemoved, pullsRemoved, authDeleted };
+});
