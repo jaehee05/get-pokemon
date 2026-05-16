@@ -96,11 +96,21 @@ export default function AdminPacks() {
   }, []);
 
   async function create() {
+    // 기존에 만들어둔 다른 팩들에서 합리적인 기본값 가져오기:
+    // - cardBackImageUrl: 채워둔 팩 중 첫 번째
+    // - 5장짜리 slots: 같은 cardCount(5) 팩의 슬롯 그대로
+    const backFromOther =
+      packs.find((p) => p.cardBackImageUrl)?.cardBackImageUrl ?? "";
+    const slotsFromOther =
+      packs.find((p) => p.cardCount === 5 && Array.isArray(p.slots) && p.slots.length === 5)
+        ?.slots ?? defaultSlots(5);
+
     const blank: Omit<Pack, "id"> = {
       name: "새 팩",
       imageUrl: "",
+      cardBackImageUrl: backFromOther,
       cardCount: 5,
-      slots: defaultSlots(5),
+      slots: slotsFromOther,
       cardPool: [],
       price: 0,
       isActive: false,
