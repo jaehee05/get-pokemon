@@ -362,20 +362,14 @@ export default function PackOpen() {
                         className={`face back${pack.cardBackImageUrl && !backImageFailed ? " custom" : ""}`}
                       >
                         {pack.cardBackImageUrl && !backImageFailed ? (
-                          <>
-                            <img
-                              src={pack.cardBackImageUrl}
-                              alt=""
-                              className="back-image"
-                              onError={() => setBackImageFailed(true)}
-                            />
-                            <span className="tap-hint">탭</span>
-                          </>
+                          <img
+                            src={pack.cardBackImageUrl}
+                            alt=""
+                            className="back-image"
+                            onError={() => setBackImageFailed(true)}
+                          />
                         ) : (
-                          <>
-                            <div className="back-pattern" />
-                            <span className="tap-hint">탭</span>
-                          </>
+                          <div className="back-pattern" />
                         )}
                       </div>
                       <div className="face front">
