@@ -181,8 +181,30 @@ export default function Inventory() {
           ) : (
             <>
               <span className="muted" style={{ fontSize: 12 }}>
-                {selectMode === "shipping" ? "배송 신청 · 카드 선택" : "분해 · 카드 선택"}
+                {selectMode === "shipping" ? "배송 신청" : "분해"} · 카드 선택
               </span>
+              <button
+                className="secondary"
+                onClick={() => {
+                  const visibleIds = filtered.map((r) => r.cardId);
+                  // 보이는 카드 모두 선택돼 있으면 해제, 아니면 전체 선택
+                  const allSelected = visibleIds.every((id) => selected.has(id));
+                  setSelected((cur) => {
+                    if (allSelected) {
+                      const next = new Set(cur);
+                      visibleIds.forEach((id) => next.delete(id));
+                      return next;
+                    }
+                    return new Set([...cur, ...visibleIds]);
+                  });
+                }}
+                disabled={filtered.length === 0}
+                style={{ fontSize: 12 }}
+              >
+                {filtered.length > 0 && filtered.every((r) => selected.has(r.cardId))
+                  ? "전체 해제"
+                  : `전체 선택 (${filtered.length})`}
+              </button>
               <button
                 disabled={selected.size === 0}
                 onClick={() => {
