@@ -153,9 +153,6 @@ export default function Inventory() {
         <div className="row" style={{ gap: 4, flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ fontSize: 12, color: "var(--muted)", marginRight: 4 }}>
             등급
-            {rarityFilter.size === 0 && (
-              <span style={{ marginLeft: 6 }}>(전체)</span>
-            )}
           </span>
           {ALL_RARITIES.map((r) => {
             const on = rarityFilter.has(r);
