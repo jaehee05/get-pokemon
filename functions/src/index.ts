@@ -550,6 +550,178 @@ export const adminClearInventory = onCall<{
   return { ok: true, removed };
 });
 
+/* =============== Shipping =============== */
+
+interface ShippingConfig {
+  fee: number;
+}
+
+/** 배송비 조회. 누구나 호출. 미설정 시 0. */
+export const getShippingConfig = onCall(callable, async () => {
+  const snap = await db.collection("config").doc("shipping").get();
+  const fee = (snap.data() as ShippingConfig | undefined)?.fee ?? 0;
+  return { fee };
+});
+
+/** 배송비 설정. 관리자 전용. */
+export const setShippingConfig = onCall<{ fee?: number }>(
+  callable,
+  async (request) => {
+    const uid = request.auth?.uid;
+    requireAuth(uid);
+    await requireAdmin(uid);
+    const fee = Math.max(0, Math.floor(request.data.fee ?? 0));
+    await db.collection("config").doc("shipping").set({ fee }, { merge: true });
+    return { ok: true, fee };
+  }
+);
+
+/**
+ * 배송 신청. 인벤토리에서 각 cardId 를 1장씩 차감, 배송비를 캐시에서 차감,
+ * 유저 프로필(이름/연락처/주소)을 저장 또는 갱신, shippingRequests 문서 생성.
+ */
+export const requestShipping = onCall<{
+  cardIds?: string[];
+  recipientName?: string;
+  recipientPhone?: string;
+  recipientAddress?: string;
+}>(callable, async (request) => {
+  const uid = request.auth?.uid;
+  requireAuth(uid);
+  const { cardIds, recipientName, recipientPhone, recipientAddress } = request.data;
+  if (!Array.isArray(cardIds) || cardIds.length === 0) {
+    throw new HttpsError("invalid-argument", "최소 1장 이상의 카드를 선택해주세요.");
+  }
+  if (cardIds.length > 200) {
+    throw new HttpsError("invalid-argument", "한 번에 200장 이하만 신청 가능합니다.");
+  }
+  const name = (recipientName ?? "").trim();
+  const phone = (recipientPhone ?? "").trim();
+  const address = (recipientAddress ?? "").trim();
+  if (!name || !phone || !address) {
+    throw new HttpsError("invalid-argument", "이름·연락처·주소를 모두 입력해주세요.");
+  }
+
+  // 중복 cardId 제거
+  const uniqueIds = Array.from(new Set(cardIds));
+
+  // 배송비 + 카드 스냅샷 로드
+  const [cfgSnap, ...cardDocs] = await Promise.all([
+    db.collection("config").doc("shipping").get(),
+    ...uniqueIds.map((id) => db.collection("cards").doc(id).get()),
+  ]);
+  const fee = (cfgSnap.data() as ShippingConfig | undefined)?.fee ?? 0;
+
+  const cardSnapshots = cardDocs.map((d, i) => {
+    if (!d.exists) {
+      throw new HttpsError("not-found", `카드 ${uniqueIds[i]} 가 존재하지 않습니다.`);
+    }
+    const data = d.data() as Card;
+    return {
+      id: d.id,
+      name: data.name,
+      rarity: data.rarity,
+      imageUrl: data.imageUrl ?? "",
+      expansionId: data.expansionId ?? null,
+      number: data.number ?? null,
+    };
+  });
+
+  const userRef = db.collection("users").doc(uid);
+  const requestRef = db.collection("shippingRequests").doc();
+  const invRefs = uniqueIds.map((id) => userRef.collection("inventory").doc(id));
+
+  await db.runTransaction(async (tx) => {
+    const userDoc = await tx.get(userRef);
+    const invDocs = await Promise.all(invRefs.map((r) => tx.get(r)));
+
+    const currency = (userDoc.data()?.currency as number | undefined) ?? 0;
+    if (fee > 0 && currency < fee) {
+      throw new HttpsError("failed-precondition", "배송비가 부족합니다.");
+    }
+
+    // 각 카드 보유 검증
+    for (let i = 0; i < invDocs.length; i++) {
+      const d = invDocs[i];
+      const cnt = (d.data()?.count as number | undefined) ?? 0;
+      if (!d.exists || cnt < 1) {
+        throw new HttpsError(
+          "failed-precondition",
+          `${cardSnapshots[i].name} 카드를 보유하고 있지 않습니다.`
+        );
+      }
+    }
+
+    // === writes ===
+    // 프로필 + 캐시 갱신
+    const profilePatch: Record<string, unknown> = {
+      shippingName: name,
+      shippingPhone: phone,
+      shippingAddress: address,
+    };
+    if (fee > 0) profilePatch.currency = FieldValue.increment(-fee);
+    tx.set(userRef, profilePatch, { merge: true });
+
+    // 인벤토리 차감
+    for (let i = 0; i < invRefs.length; i++) {
+      const ref = invRefs[i];
+      const curCount = (invDocs[i].data()?.count as number | undefined) ?? 0;
+      const next = curCount - 1;
+      if (next <= 0) {
+        tx.delete(ref);
+      } else {
+        tx.update(ref, { count: next });
+      }
+    }
+
+    // 배송 신청 doc 생성
+    tx.set(requestRef, {
+      uid,
+      userEmail: request.auth?.token.email ?? null,
+      userDisplayName: request.auth?.token.name ?? null,
+      recipientName: name,
+      recipientPhone: phone,
+      recipientAddress: address,
+      cardIds: uniqueIds,
+      cards: cardSnapshots,
+      cardCount: uniqueIds.length,
+      fee,
+      status: "pending",
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  logger.info("shipping requested", { uid, requestId: requestRef.id, cardCount: uniqueIds.length, fee });
+  return { ok: true, requestId: requestRef.id, fee };
+});
+
+/** 배송 상태 업데이트 (관리자 전용). pending → shipped / cancelled. */
+export const updateShippingStatus = onCall<{
+  requestId?: string;
+  status?: "pending" | "shipped" | "cancelled";
+  note?: string;
+}>(callable, async (request) => {
+  const uid = request.auth?.uid;
+  requireAuth(uid);
+  await requireAdmin(uid);
+  const { requestId, status, note } = request.data;
+  if (!requestId || !status) {
+    throw new HttpsError("invalid-argument", "requestId, status 필요");
+  }
+  if (!["pending", "shipped", "cancelled"].includes(status)) {
+    throw new HttpsError("invalid-argument", "잘못된 status");
+  }
+  const ref = db.collection("shippingRequests").doc(requestId);
+  const patch: Record<string, unknown> = {
+    status,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (status === "shipped") patch.shippedAt = FieldValue.serverTimestamp();
+  if (note) patch.adminNote = note;
+  await ref.set(patch, { merge: true });
+  return { ok: true };
+});
+
 /**
  * 유저 완전 삭제. Firestore: users/{uid} + inventory subcollection + pulls 기록.
  * Auth: alsoAuth가 true (기본값) 이면 Firebase Auth 계정도 삭제.

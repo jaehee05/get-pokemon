@@ -9,6 +9,9 @@ export interface UserProfile {
   currency?: number;
   isAdmin?: boolean;
   createdAt?: Timestamp;
+  shippingName?: string;
+  shippingPhone?: string;
+  shippingAddress?: string;
 }
 
 /**

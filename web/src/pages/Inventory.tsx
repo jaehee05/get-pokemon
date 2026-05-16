@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { SafeImage } from "../SafeImage";
 import { useAuth } from "../auth";
 import { db } from "../firebase";
+import { ShippingDialog } from "./ShippingDialog";
 import {
   ALL_RARITIES,
   Card,
@@ -29,6 +30,9 @@ export default function Inventory() {
   // 빈 set = 등급 필터 없음 (전체 표시). 1개 이상 선택 시 해당 등급만.
   const [rarityFilter, setRarityFilter] = useState<Set<Rarity>>(new Set());
   const [search, setSearch] = useState("");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [shippingOpen, setShippingOpen] = useState(false);
 
   const [totalCatalog, setTotalCatalog] = useState(0);
 
@@ -122,6 +126,18 @@ export default function Inventory() {
       return next;
     });
   }
+  function toggleSelect(cardId: string) {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(cardId)) next.delete(cardId);
+      else next.add(cardId);
+      return next;
+    });
+  }
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelected(new Set());
+  }
 
   if (!user) {
     return (
@@ -144,7 +160,26 @@ export default function Inventory() {
             보유 카드 {ownedTypesAll}종 · 카탈로그 {totalCatalog}종 · 진행도 {progressPct}%
           </p>
         </div>
-        <span className="balance-pill"><span>💎</span><b>{formatCurrency(profile?.currency ?? 0)}</b></span>
+        <div className="row" style={{ gap: 8 }}>
+          <span className="balance-pill"><span>💎</span><b>{formatCurrency(profile?.currency ?? 0)}</b></span>
+          {!selectMode ? (
+            <button onClick={() => setSelectMode(true)} disabled={rows.length === 0}>
+              📦 배송 신청
+            </button>
+          ) : (
+            <>
+              <button
+                disabled={selected.size === 0}
+                onClick={() => setShippingOpen(true)}
+              >
+                다음 ({selected.size}장)
+              </button>
+              <button className="ghost" onClick={exitSelectMode}>
+                취소
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {totalCatalog > 0 && (
@@ -257,8 +292,22 @@ export default function Inventory() {
             const c = r.card!;
             const exp = c.expansionId ? expById.get(c.expansionId) : undefined;
             const label = formatCardNumber(c, exp);
+            const isSelected = selected.has(r.cardId);
             return (
-              <div key={r.cardId} className="card">
+              <div
+                key={r.cardId}
+                className="card"
+                onClick={selectMode ? () => toggleSelect(r.cardId) : undefined}
+                style={
+                  selectMode
+                    ? {
+                        cursor: "pointer",
+                        outline: isSelected ? `2px solid ${RARITY_COLOR[c.rarity]}` : undefined,
+                        outlineOffset: 1,
+                      }
+                    : undefined
+                }
+              >
                 <div className="thumb">
                   <SafeImage
                     src={c.imageUrl}
@@ -283,6 +332,25 @@ export default function Inventory() {
                       ×{r.count}
                     </span>
                   )}
+                  {selectMode && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: 6, left: 6,
+                        width: 22, height: 22,
+                        borderRadius: "50%",
+                        background: isSelected ? "var(--accent)" : "rgba(0,0,0,0.6)",
+                        color: isSelected ? "#0a0d14" : "rgba(255,255,255,0.7)",
+                        display: "grid", placeItems: "center",
+                        fontSize: 13,
+                        fontWeight: 800,
+                        border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border-strong)",
+                        backdropFilter: "blur(4px)",
+                      }}
+                    >
+                      {isSelected ? "✓" : ""}
+                    </span>
+                  )}
                 </div>
                 <div className="name" style={{ fontSize: 13 }}>{c.name}</div>
                 <div className="row" style={{ justifyContent: "space-between", gap: 6 }}>
@@ -298,6 +366,27 @@ export default function Inventory() {
             );
           })}
         </div>
+      )}
+
+      {shippingOpen && (
+        <ShippingDialog
+          profile={profile}
+          balance={profile?.currency ?? 0}
+          selected={Array.from(selected)
+            .map((id): { cardId: string; card: Card; exp?: Expansion } | null => {
+              const row = rows.find((r) => r.cardId === id);
+              if (!row?.card) return null;
+              const exp = row.card.expansionId ? expById.get(row.card.expansionId) : undefined;
+              return { cardId: id, card: row.card, exp };
+            })
+            .filter((x): x is { cardId: string; card: Card; exp?: Expansion } => x !== null)}
+          onClose={() => setShippingOpen(false)}
+          onSubmitted={() => {
+            setShippingOpen(false);
+            exitSelectMode();
+            alert("배송 신청이 접수되었습니다. 관리자가 처리 후 발송합니다.");
+          }}
+        />
       )}
     </div>
   );

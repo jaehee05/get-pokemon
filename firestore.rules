@@ -27,6 +27,18 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // 설정 (배송비 등): 누구나 읽기, 관리자만 쓰기
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 배송 신청: 본인 + 관리자 읽기. 쓰기는 functions 만.
+    match /shippingRequests/{requestId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
     // 팩 정의: 확률 가중치(slots/cardPool)를 숨기기 위해 client read 차단.
     // 일반 사용자는 callable `listActivePacks` 로 슬림 메타데이터만 받는다.
     match /packs/{packId} {
@@ -41,9 +53,11 @@ service cloud.firestore {
       allow create: if isOwner(uid)
         && request.resource.data.keys().hasOnly(['displayName', 'email', 'currency', 'createdAt'])
         && (!('currency' in request.resource.data) || request.resource.data.currency == 0);
-      // currency / isAdmin 변경은 functions(admin SDK)에서만. 클라이언트는 displayName / email 만 갱신 가능.
+      // currency / isAdmin 변경은 functions(admin SDK)에서만.
+      // 클라이언트는 프로필 / 배송 정보만 갱신 가능.
       allow update: if isOwner(uid)
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['displayName', 'email']);
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(
+          ['displayName', 'email', 'shippingName', 'shippingPhone', 'shippingAddress']);
       allow delete: if false;
     }
 
