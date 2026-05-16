@@ -68,6 +68,7 @@ interface OpenPackResult {
 type Stage = "idle" | "opening" | "revealed";
 
 const MIN_OPEN_MS = 1400;
+const AUTO_BACK_MS = 4500;
 
 export default function PackOpen() {
   const { packId } = useParams<{ packId: string }>();
@@ -157,6 +158,16 @@ export default function PackOpen() {
   }
 
   const [resetting, setResetting] = useState(false);
+
+  const allRevealed =
+    !!result && revealed.length > 0 && revealed.every((v) => v);
+
+  // 모두 공개되면 일정 시간 뒤 자동으로 이전 화면으로
+  useEffect(() => {
+    if (!allRevealed || resetting) return;
+    const t = setTimeout(() => nav(-1), AUTO_BACK_MS);
+    return () => clearTimeout(t);
+  }, [allRevealed, resetting, nav]);
 
   function reveal(i: number) {
     setRevealed((arr) => arr.map((v, idx) => (idx === i ? true : v)));
@@ -406,13 +417,28 @@ export default function PackOpen() {
               })}
             </div>
           </div>
-          <div className="row" style={{ justifyContent: "center", marginTop: 20 }}>
-            <button onClick={revealAll} className="secondary" disabled={resetting}>
-              전부 공개
-            </button>
-            <button onClick={againOrRevealFirst} disabled={resetting}>
-              {resetting ? "공개 중..." : "한 번 더"}
-            </button>
+          <div
+            className="col"
+            style={{ alignItems: "center", marginTop: 20, gap: 8 }}
+          >
+            <div className="row" style={{ justifyContent: "center" }}>
+              <button
+                onClick={allRevealed ? () => nav(-1) : revealAll}
+                className={allRevealed ? "" : "secondary"}
+                disabled={resetting}
+              >
+                {allRevealed ? "← 이전으로" : "전부 공개"}
+              </button>
+              <button onClick={againOrRevealFirst} disabled={resetting}>
+                {resetting ? "공개 중..." : "한 번 더"}
+              </button>
+            </div>
+            {allRevealed && !resetting && (
+              <div className="auto-back">
+                <span className="auto-back-bar" />
+                <span className="auto-back-text">잠시 후 자동으로 돌아갑니다...</span>
+              </div>
+            )}
           </div>
         </>
       )}
