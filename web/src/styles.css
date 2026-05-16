@@ -971,7 +971,12 @@ a.admin-nav-link.active {
   }
   .top-nav { display: none; }
   .topbar-name { display: none; }
-  .topbar-logout { display: none; }
+  .topbar-logout {
+    /* 작게라도 표시 — 모바일에서도 로그아웃 가능해야 함 */
+    padding: 6px 10px;
+    font-size: 12px;
+    min-height: 32px;
+  }
   .brand-logo { height: 26px; }
 
   .balance-pill { padding: 5px 10px; font-size: 12px; }
