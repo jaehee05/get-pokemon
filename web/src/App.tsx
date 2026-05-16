@@ -72,8 +72,12 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <Link to="/" className="brand">🎴 Pokémon 카드 뽑기</Link>
+        <Link to="/" className="brand">
+          <span className="brand-mark">🎴</span>
+          <span>Pokémon 카드 뽑기</span>
+        </Link>
         <nav>
+          <Link to="/">팩</Link>
           {user && <Link to="/inventory">내 컬렉션</Link>}
           {isAdmin && <Link to="/admin">관리자</Link>}
         </nav>

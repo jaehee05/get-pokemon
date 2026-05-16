@@ -30,10 +30,24 @@ export default function Inventory() {
   const [rarityFilter, setRarityFilter] = useState<Set<Rarity>>(new Set());
   const [search, setSearch] = useState("");
 
+  const [totalCatalog, setTotalCatalog] = useState(0);
+
   useEffect(() => {
     return onSnapshot(collection(db, "expansions"), (s) =>
       setExps(s.docs.map((d) => ({ id: d.id, ...d.data() }) as Expansion))
     );
+  }, []);
+
+  useEffect(() => {
+    return onSnapshot(collection(db, "cards"), (s) => {
+      // 활성 카드 기준으로 컬렉션 진행도 계산
+      let count = 0;
+      s.forEach((d) => {
+        const data = d.data() as { isActive?: boolean };
+        if (data.isActive !== false) count++;
+      });
+      setTotalCatalog(count);
+    });
   }, []);
 
   useEffect(() => {
@@ -118,12 +132,26 @@ export default function Inventory() {
     );
   }
 
+  const ownedTypesAll = rows.filter((r) => !!r.card).length;
+  const progressPct = totalCatalog > 0 ? Math.min(100, Math.round((ownedTypesAll / totalCatalog) * 100)) : 0;
+
   return (
     <div className="col">
-      <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
-        <h1 className="h1" style={{ margin: 0 }}>내 컬렉션</h1>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">내 컬렉션</h1>
+          <p className="page-sub">
+            보유 카드 {ownedTypesAll}종 · 카탈로그 {totalCatalog}종 · 진행도 {progressPct}%
+          </p>
+        </div>
         <span className="balance-pill"><span>💎</span><b>{formatCurrency(profile?.currency ?? 0)}</b></span>
       </div>
+
+      {totalCatalog > 0 && (
+        <div className="progress" style={{ marginBottom: 14 }}>
+          <span style={{ width: `${progressPct}%` }} />
+        </div>
+      )}
 
       {/* Filters */}
       <div className="panel">

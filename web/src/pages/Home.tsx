@@ -34,18 +34,22 @@ export default function Home() {
 
   return (
     <div>
-      <div className="row" style={{ justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap" }}>
-        <h1 className="h1" style={{ margin: 0 }}>팩 선택</h1>
+      <section className="hero">
+        <h1>Pokémon 카드 뽑기</h1>
+        <p>
+          확장팩별 카드를 모아보고, 팩을 열어 컬렉션을 완성하세요.
+          {user ? " 캐시로 새 팩을 열고 희귀 카드를 노려보세요." : " 로그인 후 팩을 열 수 있어요."}
+        </p>
         {user && (
-          <div className="row" style={{ gap: 14, fontSize: 13 }}>
-            <span className="muted">보유 캐시</span>
+          <div className="hero-balance row" style={{ gap: 12 }}>
             <span className="balance-pill" style={{ fontSize: 14 }}>
               <span>💎</span>
-              <b style={{ fontSize: 14 }}>{formatCurrency(balance)}</b>
+              <b>{formatCurrency(balance)}</b>
             </span>
+            <span className="muted" style={{ fontSize: 12 }}>보유 캐시</span>
           </div>
         )}
-      </div>
+      </section>
 
       {!user && (
         <div className="empty" style={{ marginBottom: 16 }}>
@@ -53,6 +57,13 @@ export default function Home() {
           팩을 열려면 우측 상단에서 로그인 또는 회원가입을 해주세요.
         </div>
       )}
+
+      <div className="page-head">
+        <div>
+          <h2 className="page-title" style={{ fontSize: 22 }}>팩 컬렉션</h2>
+          <p className="page-sub">현재 활성화된 팩들. 잔여 재고 기준으로 표시됩니다.</p>
+        </div>
+      </div>
 
       {err && <p style={{ color: "var(--danger)" }}>{err}</p>}
       {packs === null && !err && <p className="muted">불러오는 중...</p>}
