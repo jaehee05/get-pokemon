@@ -68,7 +68,6 @@ interface OpenPackResult {
 type Stage = "idle" | "opening" | "revealed";
 
 const MIN_OPEN_MS = 1400;
-const AUTO_BACK_MS = 7000;
 
 export default function PackOpen() {
   const { packId } = useParams<{ packId: string }>();
@@ -173,13 +172,6 @@ export default function PackOpen() {
 
   const allRevealed =
     !!result && revealed.length > 0 && revealed.every((v) => v);
-
-  // 모두 공개되면 일정 시간 뒤 자동으로 이전 화면으로
-  useEffect(() => {
-    if (!allRevealed || resetting) return;
-    const t = setTimeout(() => nav(-1), AUTO_BACK_MS);
-    return () => clearTimeout(t);
-  }, [allRevealed, resetting, nav]);
 
   function reveal(i: number) {
     setRevealed((arr) => arr.map((v, idx) => (idx === i ? true : v)));
